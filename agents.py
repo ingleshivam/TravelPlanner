@@ -22,13 +22,16 @@ from prompts import (
     BUDGET_TRACKER_PROMPT,
 )
 
+if not os.getenv("GROQ_API_KEY"):
+    raise RuntimeError("Missing GROQ_API_KEY. Add it to .env before starting the API.")
+
 llm = ChatGroq(
-    model="openai/gpt-oss-120b",
+    model="llama-3.3-70b-versatile",
     temperature=0.2,
-    api_key=os.environ["GROQ_API_KEY"]
+    api_key=os.getenv("GROQ_API_KEY"),
 )
 
-# Supervisor stays plain text (it returns a routing keyword, not structured data)
+
 def _plain_chain(system_prompt: str):
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -36,13 +39,12 @@ def _plain_chain(system_prompt: str):
     ])
     return prompt | llm
 
-# Structured chains — schema is enforced at the LLM level (tool-calling / JSON mode)
 def _structured_chain(system_prompt: str, schema):
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         ("human", "{input}"),
     ])
-    return prompt | llm.with_structured_output(schema)
+    return prompt | llm.with_structured_output(schema, method="json_mode")
 
 
 supervisor_chain    = _plain_chain(SUPERVISOR_SYSTEM_PROMPT)

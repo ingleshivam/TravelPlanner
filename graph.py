@@ -1,6 +1,7 @@
 from langgraph.graph import StateGraph, END
 from state import TravelPlanState
 from nodes import (
+    currency_inference_node,
     supervisor_node,
     destination_researcher_node,
     transport_agent_node,
@@ -11,7 +12,23 @@ from nodes import (
 
 # ── Router ────────────────────────────────────────────────────────────────────
 def route_from_supervisor(state: TravelPlanState) -> str:
-    return state["next_agent"]
+    if state.get("step_count", 0) > 8:
+        return "finish"
+
+    destination_known = bool(state.get("destination"))
+
+    if not destination_known and not state.get("destination_research"):
+        return "destination_researcher"
+    if not state.get("transport_plan"):
+        return "transport_agent"
+    if not state.get("accommodation_plan"):
+        return "accommodation_agent"
+    if not state.get("itinerary"):
+        return "itinerary_agent"
+    if not state.get("budget_summary"):
+        return "budget_tracker"
+
+    return "finish"
 
 
 def route_from_budget_tracker(state: TravelPlanState) -> str:
@@ -26,6 +43,7 @@ def build_graph() -> StateGraph:
     graph = StateGraph(TravelPlanState)
 
     # Register nodes
+    graph.add_node("currency_inference",     currency_inference_node)
     graph.add_node("supervisor",             supervisor_node)
     graph.add_node("destination_researcher", destination_researcher_node)
     graph.add_node("transport_agent",        transport_agent_node)
@@ -33,8 +51,9 @@ def build_graph() -> StateGraph:
     graph.add_node("itinerary_agent",        itinerary_agent_node)
     graph.add_node("budget_tracker",         budget_tracker_node)
 
-    # Entry point
-    graph.set_entry_point("supervisor")
+    # Entry point — infer currency first, then hand off to supervisor
+    graph.set_entry_point("currency_inference")
+    graph.add_edge("currency_inference", "supervisor")
 
     # Supervisor routes to any agent (or FINISH)
     graph.add_conditional_edges(
