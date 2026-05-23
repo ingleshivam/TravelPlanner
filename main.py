@@ -7,13 +7,13 @@ load_dotenv()
 
 initial_state = {
     "user_budget": 1000.0,
-    "currency": "",         # filled by currency_inference_node
-    "currency_symbol": "",  # filled by currency_inference_node
+    "currency": "",         
+    "currency_symbol": "",  
     "origin": "Pune, India",
-    "destination": "Mumbai, India",            # let destination_researcher decide
-    "start_date": "2025-09-10",
-    "end_date": "2025-09-17",
-    "num_days": 7,
+    "destination": "Parbhani, India",            
+    "start_date": "2025-05-26",
+    "end_date": "2025-05-26",
+    "num_days": 1,
     "num_travelers": 1,
     "travel_style": "budget-backpacker",
     "interests": ["culture", "street food", "temples", "markets"],
@@ -25,14 +25,12 @@ initial_state = {
         "misc": 5,
     },
 
-    # Agent outputs (empty to start)
     "destination_research": None,
     "transport_plan": None,
     "accommodation_plan": None,
     "itinerary": None,
     "budget_summary": None,
 
-    # Control flow
     "budget_overrun": False,
     "overrun_amount": 0.0,
     "budget_constraint_message": None,

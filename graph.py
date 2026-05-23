@@ -10,7 +10,6 @@ from nodes import (
     budget_tracker_node,
 )
 
-# ── Router ────────────────────────────────────────────────────────────────────
 def route_from_supervisor(state: TravelPlanState) -> str:
     if state.get("step_count", 0) > 8:
         return "finish"
@@ -38,11 +37,9 @@ def route_from_budget_tracker(state: TravelPlanState) -> str:
     return END
 
 
-# ── Build graph ───────────────────────────────────────────────────────────────
 def build_graph() -> StateGraph:
     graph = StateGraph(TravelPlanState)
 
-    # Register nodes
     graph.add_node("currency_inference",     currency_inference_node)
     graph.add_node("supervisor",             supervisor_node)
     graph.add_node("destination_researcher", destination_researcher_node)
@@ -51,11 +48,9 @@ def build_graph() -> StateGraph:
     graph.add_node("itinerary_agent",        itinerary_agent_node)
     graph.add_node("budget_tracker",         budget_tracker_node)
 
-    # Entry point — infer currency first, then hand off to supervisor
     graph.set_entry_point("currency_inference")
     graph.add_edge("currency_inference", "supervisor")
 
-    # Supervisor routes to any agent (or FINISH)
     graph.add_conditional_edges(
         "supervisor",
         route_from_supervisor,
@@ -69,7 +64,6 @@ def build_graph() -> StateGraph:
         }
     )
 
-    # All agents report back to supervisor after completing
     for agent in [
         "destination_researcher",
         "transport_agent",
@@ -78,7 +72,6 @@ def build_graph() -> StateGraph:
     ]:
         graph.add_edge(agent, "supervisor")
 
-    # Budget tracker either finishes or loops back
     graph.add_conditional_edges(
         "budget_tracker",
         route_from_budget_tracker,

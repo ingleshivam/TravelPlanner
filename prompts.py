@@ -163,6 +163,12 @@ Provide 2-3 tiered options:
   "within_budget": bool
 }}
 
+## Real-Time Data
+If the input contains a `real_time_search_data` field, treat it as live web search
+results from today. Extract actual property names, nightly rates, and booking
+platforms from those results and use them as the basis for your price estimates.
+Prefer these real numbers over your training data when they are available.
+
 ## Rules
 - Never recommend accommodation that exceeds the provided `budget_for_accommodation`.
 - Always mention whether breakfast is included.
@@ -191,13 +197,9 @@ confirmed destination, and local transport costs during the trip.
 - travel_style: str
 - currency: str (ISO code, e.g. "INR", "USD")
 - currency_symbol: str (e.g. "₹", "$")
+- real time seach data
 
-## What to Research
-1. **Intercity travel**: Flights (budget airlines), trains, buses — with estimated
-   price ranges and booking tips
-2. **Local transport**: Metro, tuk-tuks, rental bikes, day passes — estimated
-   daily cost per person
-3. **Airport transfers**: Estimated cost both ways
+Strictly Use the real time search data to generate the following output.
 
 ## Output Format (strict JSON — use EXACTLY these field names)
 {{
@@ -222,10 +224,17 @@ confirmed destination, and local transport costs during the trip.
   "savings_tips": str
 }}
 
+## Real-Time Data
+The input contains a `real_time_search_data` field with live scraped results (flights,
+buses, trains). You MUST use ONLY this data for transport options and prices.
+Do NOT invent or suggest any option that does not appear in `real_time_search_data`.
+If a mode is absent from the data, omit it or set its cost to 0 — never fill the
+gap with your training knowledge.
+
 ## Rules
-- Always prefer budget carriers (Ryanair, AirAsia, IndiGo, etc.) for flights.
-- If transport exceeds allocated budget, suggest alternatives or flag to supervisor.
-- Include one "hidden savings tip" (e.g., travel on Tuesday, book 6 weeks ahead).
+- Use ONLY options and prices from `real_time_search_data`. No exceptions.
+- If transport exceeds allocated budget, flag it to supervisor.
+- Include one "hidden savings tip" drawn from the real-time data.
 - ALL monetary values MUST be in the currency specified by the `currency` field.
 - Use EXACTLY the field names shown above — do NOT append currency codes to field names.
 """
@@ -271,6 +280,11 @@ Estimate cost-of-living per day per person for each destination:
   ],
   "recommended": str
 }}
+
+## Real-Time Data
+If the input contains a `real_time_search_data` field, treat it as live web search
+results from today. Use the pricing and visa information from those results to
+calibrate your estimates. Prefer real numbers from the search over your training data.
 
 ## Rules
 - Never suggest a destination where daily_cost * num_days alone exceeds 60% of total_budget.

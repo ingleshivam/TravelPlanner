@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Literal, Optional
+from typing import Any, List, Literal, Optional
 
 
 # Destination Researcher
@@ -23,7 +23,7 @@ class IntercityTransport(BaseModel):
     estimated_cost_per_person: float
     total_cost: float
     booking_tips: str
-    budget_airlines_or_options: List[str]
+    budget_airlines_or_options: List[Any]
 
 class LocalTransport(BaseModel):
     daily_cost_per_person: float

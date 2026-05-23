@@ -127,9 +127,10 @@ async def create_travel_plan(request: TravelPlanRequest) -> Dict:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
+        import traceback
         raise HTTPException(
             status_code=500,
-            detail="Travel plan generation failed. Check API key, model output, and server logs.",
+            detail=f"Travel plan generation failed: {type(exc).__name__}: {exc}\n{traceback.format_exc()}",
         ) from exc
 
     return {

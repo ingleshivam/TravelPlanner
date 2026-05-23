@@ -26,8 +26,8 @@ if not os.getenv("GROQ_API_KEY"):
     raise RuntimeError("Missing GROQ_API_KEY. Add it to .env before starting the API.")
 
 llm = ChatGroq(
-    model="llama-3.3-70b-versatile",
-    temperature=0.2,
+    model="openai/gpt-oss-120b",
+    temperature=0,
     api_key=os.getenv("GROQ_API_KEY"),
 )
 
@@ -40,6 +40,8 @@ def _plain_chain(system_prompt: str):
     return prompt | llm
 
 def _structured_chain(system_prompt: str, schema):
+    if "json" not in system_prompt.lower():
+        system_prompt = system_prompt + "\nRespond with JSON only."
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         ("human", "{input}"),

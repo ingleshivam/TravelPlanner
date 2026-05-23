@@ -1,12 +1,13 @@
 import json
 from schemas import AccommodationPlanOutput, BudgetTrackerOutput, DestinationResearchOutput, ItineraryOutput, TransportPlanOutput
 from state import TravelPlanState
+from pydantic import AliasChoices, BaseModel, Field
 from agents import (
-    researcher_chain, transport_chain,
+    _structured_chain, researcher_chain, transport_chain,
     accommodation_chain, itinerary_chain, budget_chain,
 )
 from utils import infer_currency
-
+from search import search_destination_info, search_transport_prices, search_accommodation_prices
 
 DEFAULT_BUDGET_ALLOCATION = {
     "transport": 40,
@@ -42,8 +43,28 @@ def _validate_budget_allocation(state: TravelPlanState) -> None:
 def currency_inference_node(state: TravelPlanState) -> dict:
     _validate_budget_allocation(state)
     location = state.get("destination") or state["origin"]
-    code, symbol = infer_currency(location)
-    return {"currency": code, "currency_symbol": symbol}
+
+    class CurrencyStructure(BaseModel):
+        model_config = {"populate_by_name": True}
+        code: str = Field(validation_alias=AliasChoices("code", "currency_code", "currency"))
+        symbol: str = Field(validation_alias=AliasChoices("symbol", "currency_symbol"))
+
+    try:
+        chain = _structured_chain(
+            system_prompt=(
+                "Return the ISO 4217 currency code and symbol for the given city or country. "
+                "Examples: India/Pune/Mumbai → INR/₹, USA/New York → USD/$, UK/London → GBP/£, Europe/Paris → EUR/€. "
+                "Respond with JSON only."
+            ),
+            schema=CurrencyStructure,
+        )
+        result: CurrencyStructure = chain.invoke({"input": f"City or country: {location}"})
+        print("Currency Result : ", result)
+        return {"currency": result.code, "currency_symbol": result.symbol}
+    except Exception as e:
+        print("Exception occur in currency function : ", str(e))
+        code, symbol = infer_currency(location)
+        return {"currency": code, "currency_symbol": symbol}
 
 
 def supervisor_node(state: TravelPlanState) -> dict:
@@ -69,6 +90,9 @@ def supervisor_node(state: TravelPlanState) -> dict:
 
 
 def destination_researcher_node(state: TravelPlanState) -> dict:
+    dest_hint = state.get("destination") or "Asia budget destinations"
+    live_data = search_destination_info(dest_hint, state["origin"], state["num_days"])
+
     result: DestinationResearchOutput = researcher_chain.invoke({"input": json.dumps({
         "total_budget": state["user_budget"],
         "num_days": state["num_days"],
@@ -78,6 +102,7 @@ def destination_researcher_node(state: TravelPlanState) -> dict:
         "num_travelers": state["num_travelers"],
         "currency": state["currency"],
         "currency_symbol": state["currency_symbol"],
+        "real_time_search_data": live_data,
     })})
     return {
         "destination_research": result.model_dump(),
@@ -86,6 +111,12 @@ def destination_researcher_node(state: TravelPlanState) -> dict:
 
 
 def transport_agent_node(state: TravelPlanState) -> dict:
+    live_data = search_transport_prices(
+        state["origin"], state["destination"], state["start_date"]
+    )
+    
+    print("Live Data : ", live_data)
+
     input_data = {
         "origin": state["origin"],
         "destination": state["destination"],
@@ -95,15 +126,22 @@ def transport_agent_node(state: TravelPlanState) -> dict:
         "travel_style": state["travel_style"],
         "currency": state["currency"],
         "currency_symbol": state["currency_symbol"],
+        "real_time_search_data": live_data,
     }
+    print("INPUT DATA : ", input_data)
     if state.get("budget_constraint_message"):
         input_data["constraint"] = state["budget_constraint_message"]
 
     result: TransportPlanOutput = transport_chain.invoke({"input": json.dumps(input_data)})
+    print("TRANSPORT AGENT DATA : ",result)
     return {"transport_plan": result.model_dump()}
 
 
 def accommodation_agent_node(state: TravelPlanState) -> dict:
+    live_data = search_accommodation_prices(
+        state["destination"], state["travel_style"], state["num_days"]
+    )
+
     input_data = {
         "destination": state["destination"],
         "num_days": state["num_days"],
@@ -113,6 +151,7 @@ def accommodation_agent_node(state: TravelPlanState) -> dict:
         "preferences": state["interests"],
         "currency": state["currency"],
         "currency_symbol": state["currency_symbol"],
+        "real_time_search_data": live_data,
     }
     if state.get("budget_constraint_message"):
         input_data["constraint"] = state["budget_constraint_message"]
