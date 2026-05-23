@@ -8,3 +8,4 @@ backend.log
 backend.err.log
 frontend.log
 frontend.err.log
+.claude
