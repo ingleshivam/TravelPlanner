@@ -26,21 +26,21 @@ class IntercityTransport(BaseModel):
     budget_airlines_or_options: List[Any]
 
 class LocalTransport(BaseModel):
-    daily_cost_per_person: float
-    total_local_transport: float
-    recommended_options: List[str]
+    daily_cost_per_person: float = 0.0
+    total_local_transport: float = 0.0
+    recommended_options: List[str] = []
 
 class AirportTransfer(BaseModel):
-    cost: float
-    recommended_mode: str
+    cost: float = 0.0
+    recommended_mode: str = "N/A"
 
 class TransportPlanOutput(BaseModel):
     intercity: IntercityTransport
-    local_transport: LocalTransport
-    airport_transfer: AirportTransfer
-    total_transport_cost: float
-    within_budget: bool
-    savings_tips: str
+    local_transport: LocalTransport = Field(default_factory=LocalTransport)
+    airport_transfer: AirportTransfer = Field(default_factory=AirportTransfer)
+    total_transport_cost: float = 0.0
+    within_budget: bool = True
+    savings_tips: str = ""
 
 
 # Accommodation Agent

@@ -44,8 +44,8 @@ const defaultAllocation: Allocation = {
 
 export default function Home() {
   const [budget, setBudget] = useState(1000);
-  const [origin, setOrigin] = useState("Pune, India");
-  const [destination, setDestination] = useState("Parbhani");
+  const [origin, setOrigin] = useState("pune");
+  const [destination, setDestination] = useState("mumbai");
   const [startDate, setStartDate] = useState("2026-05-26");
   const [endDate, setEndDate] = useState("2026-05-27");
   const [days, setDays] = useState(1);
@@ -378,8 +378,6 @@ export default function Home() {
   );
 }
 
-// ── Result components ──────────────────────────────────────────────────────────
-
 function money(value: number, plan: TravelPlan) {
   return `${plan.currency_symbol}${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} ${plan.currency}`.trim();
 }
@@ -511,80 +509,192 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
       {transport && (
         <div className="panel p-6">
           <h3>Getting Around</h3>
-          <div className="grid two">
-            <div>
-              <p className="section-label">Intercity Travel</p>
-              <p className="transport-mode">{transport.intercity?.mode}</p>
-              <div className="kv-list">
-                <div>
-                  <span>Cost per person</span>
-                  <strong>
-                    {money(
-                      transport.intercity?.estimated_cost_per_person,
-                      plan,
-                    )}
-                  </strong>
-                </div>
-                <div>
-                  <span>Total cost</span>
-                  <strong>
-                    {money(transport.intercity?.total_cost, plan)}
-                  </strong>
-                </div>
+
+          {/* Recommended intercity option */}
+          <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl mb-5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
+                Recommended
+              </span>
+              <span className="text-lg font-semibold text-primary capitalize">
+                {transport.intercity?.mode}
+              </span>
+            </div>
+            <div className="kv-list">
+              <div>
+                <span>Cost per person</span>
+                <strong>
+                  {money(transport.intercity?.estimated_cost_per_person, plan)}
+                </strong>
               </div>
-              <p className="muted-text">{transport.intercity?.booking_tips}</p>
-              {transport.intercity?.budget_airlines_or_options?.length > 0 && (
-                <ul className="option-chips">
-                  {transport.intercity.budget_airlines_or_options.map(
-                    (opt: unknown, i: number) => {
-                      if (typeof opt === "string") return <li key={i}>{opt}</li>;
-                      const o = opt as Record<string, unknown>;
-                      const label = [
-                        o.type, o.operator, o.class ?? o.bus_type,
-                        o.train_number ?? o.flight_number,
-                        o.departure && o.arrival ? `${o.departure} → ${o.arrival}` : null,
-                        o.price != null ? `₹${o.price}` : null,
-                      ].filter(Boolean).join("  |  ");
-                      return <li key={i}>{label}</li>;
-                    },
-                  )}
-                </ul>
+              <div>
+                <span>Total cost</span>
+                <strong>{money(transport.intercity?.total_cost, plan)}</strong>
+              </div>
+            </div>
+            <p className="muted-text mt-1">
+              {transport.intercity?.booking_tips}
+            </p>
+          </div>
+
+          {/* All available options grouped by type */}
+          {transport.available_options && (
+            <div className="mt-2">
+              <p className="section-label">All Available Options</p>
+
+              {/* Trains */}
+              {transport.available_options.trains?.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-sm font-bold text-foreground mb-2">
+                    🚂 Trains
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {transport.available_options.trains.map(
+                      (t: any, i: number) => (
+                        <div
+                          key={i}
+                          className="p-3 bg-secondary border border-border rounded-xl"
+                        >
+                          <p className="text-sm font-semibold text-foreground mb-1">
+                            {t.train_number} · {t.name}
+                          </p>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            {t.departure} → {t.arrival}
+                          </p>
+                          {t.classes?.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {t.classes.map((cls: any, j: number) => (
+                                <span
+                                  key={j}
+                                  className="px-2.5 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded-full"
+                                >
+                                  {cls.class_name}: {plan.currency_symbol}
+                                  {Number(cls.price).toLocaleString()}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Buses */}
+              {transport.available_options.buses?.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-sm font-bold text-foreground mb-2">
+                    🚌 Buses
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {transport.available_options.buses.map(
+                      (b: any, i: number) => (
+                        <div
+                          key={i}
+                          className="p-3 bg-secondary border border-border rounded-xl"
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <span className="text-sm font-semibold text-foreground">
+                              {b.operator}
+                            </span>
+                            <span className="text-sm font-bold text-primary whitespace-nowrap">
+                              {plan.currency_symbol}
+                              {Number(b.price).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-1.5">
+                            {b.departure} → {b.arrival}
+                            {b.duration && (
+                              <span className="ml-2 text-xs bg-background px-1.5 py-0.5 rounded">
+                                {b.duration}
+                              </span>
+                            )}
+                          </p>
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            {b.bus_type && <span>{b.bus_type}</span>}
+                            {b.seats_available > 0 && (
+                              <span>{b.seats_available} seats left</span>
+                            )}
+                            {b.rating && <span>⭐ {b.rating}</span>}
+                          </div>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Flights */}
+              {transport.available_options.flights?.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-sm font-bold text-foreground mb-2">
+                    ✈️ Flights
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {transport.available_options.flights.map(
+                      (f: any, i: number) => (
+                        <div
+                          key={i}
+                          className="p-3 bg-secondary border border-border rounded-xl"
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <span className="text-sm font-semibold text-foreground">
+                              {f.airline}
+                              {f.flight_number ? ` · ${f.flight_number}` : ""}
+                            </span>
+                            <span className="text-sm font-bold text-primary whitespace-nowrap">
+                              {plan.currency_symbol}
+                              {Number(f.price).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-1.5">
+                            {f.departure} → {f.arrival}
+                            {f.duration && (
+                              <span className="ml-2 text-xs bg-background px-1.5 py-0.5 rounded">
+                                {f.duration}
+                              </span>
+                            )}
+                          </p>
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            {f.seat_class && <span>{f.seat_class}</span>}
+                            {f.seats_available > 0 && (
+                              <span>{f.seats_available} seats left</span>
+                            )}
+                          </div>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
               )}
             </div>
-            <div>
+          )}
+
+          {/* Local transport & airport transfer */}
+          <div className="grid two" style={{ marginTop: 20 }}>
+            {/* <div>
               <p className="section-label">Local Transport</p>
               <div className="kv-list">
                 <div>
                   <span>Daily per person</span>
-                  <strong>
-                    {money(
-                      transport.local_transport?.daily_cost_per_person,
-                      plan,
-                    )}
-                  </strong>
+                  <strong>{money(transport.local_transport?.daily_cost_per_person, plan)}</strong>
                 </div>
                 <div>
                   <span>Total</span>
-                  <strong>
-                    {money(
-                      transport.local_transport?.total_local_transport,
-                      plan,
-                    )}
-                  </strong>
+                  <strong>{money(transport.local_transport?.total_local_transport, plan)}</strong>
                 </div>
               </div>
               {transport.local_transport?.recommended_options?.length > 0 && (
                 <ul className="option-chips">
-                  {transport.local_transport.recommended_options.map(
-                    (opt: string, i: number) => (
-                      <li key={i}>{opt}</li>
-                    ),
-                  )}
+                  {transport.local_transport.recommended_options.map((opt: string, i: number) => (
+                    <li key={i}>{opt}</li>
+                  ))}
                 </ul>
               )}
-              <p className="section-label" style={{ marginTop: 16 }}>
-                Airport Transfer
-              </p>
+            </div> */}
+            <div>
+              <p className="section-label">Airport Transfer</p>
               <div className="kv-list">
                 <div>
                   <span>Mode</span>
@@ -601,6 +711,7 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
               </div>
             </div>
           </div>
+
           {transport.savings_tips && (
             <p className="savings-tip">💡 {transport.savings_tips}</p>
           )}

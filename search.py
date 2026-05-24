@@ -1,10 +1,10 @@
 import os
 import re
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from firecrawl import FirecrawlApp
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 from tavily import TavilyClient
 
 from agents import _structured_chain
@@ -60,9 +60,7 @@ def _strip_markup(text: str) -> str:
 
 def _flight_url(origin_iata: str, dest_iata: str, date_ddmmyyyy: str) -> str:
     return (
-        f"https://www.ixigo.com/search/result/flight"
-        f"?from={origin_iata}&to={dest_iata}&date={date_ddmmyyyy}"
-        f"&adults=1&children=0&infants=0&class=e"
+        f"https://www.yatra.com/flight-schedule/{origin_iata}-to-{dest_iata}-flights.html"
     )
 
 
@@ -90,33 +88,36 @@ def _train_url(origin_code: str, dest_code: str, date_yyyymmdd: str,
 
 
 def _extract_flights(markdown: str) -> str:
+    if not markdown or len(markdown) < 100 or "(Scrape unavailable" in markdown:
+        return "No flights found."
+
     text = _strip_markup(markdown)
-    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r'\n{2,}', '\n', text)
 
     pattern = re.compile(
-        r'([A-Z][A-Za-z](?:[A-Za-z &\.]+)?)\n\n'
-        r'([A-Z0-9]{2,8})\n\n'
-        r'#{4,6}\s*(\d{1,2}:\d{2})\n\n'
-        r'([A-Z]{3})\n\n'
-        r'(\d+h \d+m)\n\n'
-        r'(Non-stop|\d+ Stops?)\n\n'
-        r'#{4,6}\s*(\d{1,2}:\d{2})\n\n'
-        r'([A-Z]{3})\n\n'
-        r'#{4,6}\s*(₹[\d,]+)',
+        r'[A-Z][A-Za-z][A-Za-z &\.]*?\n'
+        r'[A-Z0-9]{2}[-\s]?\d{2,4}\n'
+        r'#*\s*\d{1,2}:\d{2}\n'
+        r'[A-Z]{3}\n'
+        r'\d+h\s*\d*m?\n'
+        r'(?:Non-?stop|\d+\s*Stops?)\n'
+        r'#*\s*\d{1,2}:\d{2}\n'
+        r'[A-Z]{3}\n'
+        r'#*\s*₹[\d,]+',
         re.MULTILINE,
     )
 
-    seen = set()
+    seen: set = set()
     results = []
     for m in pattern.finditer(text):
-        airline, flight_no, dep, origin, duration, stops, arr, dest, price = m.groups()
-        key = (flight_no, dep, arr, price)
-        if key in seen:
-            continue
-        seen.add(key)
-        results.append(
-            f"{airline} {flight_no}  {dep} {origin} -> {arr} {dest}  {duration}  {stops}  {price}"
+        entry = '  '.join(
+            line.lstrip('#').strip()
+            for line in m.group(0).splitlines()
+            if line.strip()
         )
+        if entry not in seen:
+            seen.add(entry)
+            results.append(entry)
 
     return "\n".join(results) if results else "No flights found."
 
@@ -189,7 +190,7 @@ def _extract_trains(markdown: str) -> str:
 
 def search_transport_prices(origin: str, destination: str, start_date: str) -> str:
     class RouteCity(BaseModel):
-        city: str = Field(description="City name")
+        city: str = Field(default="", description="City name")
         iata: Optional[str] = Field(default=None, description="3-letter IATA airport code e.g. PNQ for Pune, BOM for Mumbai, DEL for Delhi, MAA for Chennai")
         railway: Optional[str] = Field(default=None, description="Indian Railways station code e.g. PUNE for Pune, CSTM for Mumbai CST, NDLS for New Delhi, MAS for Chennai")
 
@@ -201,8 +202,8 @@ def search_transport_prices(origin: str, destination: str, start_date: str) -> s
         system_prompt=(
             "You are a travel code lookup assistant. "
             "Given city names, return their IATA airport codes and Indian Railways station codes. "
-            "You MUST fill in the IATA code for any city that has an airport — never leave it null. "
-            "You MUST fill in the railway code for any city that has a railway station — never leave it null. "
+            "Only set iata if the city has an active commercial airport with scheduled passenger flights — set null otherwise. "
+            "Only set railway if the city has an Indian Railways station — set null otherwise. "
             "Respond with JSON only."
         ),
         schema=RouteCodes,
@@ -220,19 +221,72 @@ def search_transport_prices(origin: str, destination: str, start_date: str) -> s
     date_yyyymmdd = dt.strftime("%Y%m%d")   
 
     parts: list[str] = []
+    llm_flights: list[dict] = []
 
     if codes.origin.iata and codes.destination.iata:
-        url = _flight_url(codes.origin.iata, codes.destination.iata, date_ddmmyyyy)
-        raw = _scrape(url)
+        url = _flight_url(origin, destination, date_ddmmyyyy)
+        print("Fllight url : ", url)
+        raw = _scrape(url, wait_ms=10000)
+        
+        class FlightInformation(BaseModel):
+            model_config = {"populate_by_name": True}
+            flight_name: Optional[str] = Field(default=None, description="Airline name e.g. Air India, IndiGo. Key must be flight_name.")
+            flight_fare: Optional[str] = Field(default=None, description="Flight fare e.g. ₹9,696. Key must be flight_fare.")
+            flight_duration: Optional[str] = Field(default=None, description="Flight duration e.g. 4h 20m. Key must be flight_duration.")
+            flight_departure_time: Optional[str] = Field(default=None, description="Departure time from origin e.g. 06:30. Key must be flight_departure_time.")
+
+        class FlightResults(BaseModel):
+            flights: List[FlightInformation] = Field(default_factory=list, description="List of all available flights extracted from the data.")
+
+        flight_chain = _structured_chain(
+            system_prompt=(
+                "Extract ALL available flights from the given data. "
+                "Return a JSON object with a 'flights' array. Each flight must have: "
+                "flight_name (airline), flight_fare (price with ₹), flight_duration (e.g. 2h 15m), flight_departure_time (HH:MM). "
+                "Respond with JSON only."
+            ),
+            schema=FlightResults,
+        )
+
+        result: FlightResults = flight_chain.invoke({"input": raw[:10000]})
+        print("Flight chain result:", result)
+
+        llm_flights = []
+        for f in result.flights:
+            price = 0.0
+            if f.flight_fare:
+                try:
+                    price = float(re.sub(r'[₹,\s]', '', f.flight_fare))
+                except ValueError:
+                    price = 0.0
+            llm_flights.append({
+                "airline": f.flight_name or "",
+                "flight_number": "",
+                "departure": f.flight_departure_time or "",
+                "arrival": "",
+                "duration": f.flight_duration or "",
+                "seat_class": "",
+                "seats_available": 0,
+                "price": price,
+            })
+
+        llm_flights.sort(key=lambda x: x["price"])
+        llm_flights = llm_flights[:5]
+
         flights = _extract_flights(raw)
         parts.append(f"=== FLIGHTS ===\n{flights}")
     else:
-        parts.append("=== FLIGHTS ===\nNo IATA codes available.")
+        parts.append("=== FLIGHTS ===\nNo direct flights (no commercial airport at origin or destination).")
 
-    bus_origin = codes.origin.city or origin
-    bus_dest = codes.destination.city or destination
+    # Use just the city name (before any comma) for the URL slug
+    def _city_name(code_city: str, fallback: str) -> str:
+        raw = code_city if code_city else fallback
+        return raw.split(",")[0].strip()
+
+    bus_origin = _city_name(codes.origin.city, origin)
+    bus_dest = _city_name(codes.destination.city, destination)
     url = _bus_url(bus_origin, bus_dest, date_yyyymmdd)
-    raw = _scrape(url)
+    raw = _scrape(url, wait_ms=3000)
     buses = _extract_buses(raw)
     parts.append(f"=== BUSES ===\n{buses}")
 
@@ -247,7 +301,7 @@ def search_transport_prices(origin: str, destination: str, start_date: str) -> s
     else:
         parts.append("=== TRAINS ===\nNo railway codes available.")
 
-    return "\n\n".join(parts)
+    return {"text": "\n\n".join(parts), "flights": llm_flights}
 
 
 def search_accommodation_prices(destination: str, travel_style: str, num_days: int) -> str:

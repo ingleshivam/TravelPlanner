@@ -197,7 +197,7 @@ confirmed destination, and local transport costs during the trip.
 - travel_style: str
 - currency: str (ISO code, e.g. "INR", "USD")
 - currency_symbol: str (e.g. "₹", "$")
-- real time seach data
+- real_time_search_data: str (live scraped flights, buses, trains)
 
 Strictly Use the real time search data to generate the following output.
 
@@ -208,7 +208,7 @@ Strictly Use the real time search data to generate the following output.
     "estimated_cost_per_person": float,
     "total_cost": float,
     "booking_tips": str,
-    "budget_airlines_or_options": list
+    "budget_airlines_or_options": []
   }},
   "local_transport": {{
     "daily_cost_per_person": float,
@@ -226,13 +226,11 @@ Strictly Use the real time search data to generate the following output.
 
 ## Real-Time Data
 The input contains a `real_time_search_data` field with live scraped results (flights,
-buses, trains). You MUST use ONLY this data for transport options and prices.
-Do NOT invent or suggest any option that does not appear in `real_time_search_data`.
-If a mode is absent from the data, omit it or set its cost to 0 — never fill the
-gap with your training knowledge.
+buses, trains). Use it to choose the best recommended option for `intercity`.
+Do NOT invent prices — only use values from `real_time_search_data`.
 
 ## Rules
-- Use ONLY options and prices from `real_time_search_data`. No exceptions.
+- The `intercity` block must reflect the recommended cheapest option within budget.
 - If transport exceeds allocated budget, flag it to supervisor.
 - Include one "hidden savings tip" drawn from the real-time data.
 - ALL monetary values MUST be in the currency specified by the `currency` field.

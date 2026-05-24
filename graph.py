@@ -11,9 +11,6 @@ from nodes import (
 )
 
 def route_from_supervisor(state: TravelPlanState) -> str:
-    if state.get("step_count", 0) > 8:
-        return "finish"
-
     destination_known = bool(state.get("destination"))
 
     if not destination_known and not state.get("destination_research"):
@@ -29,12 +26,6 @@ def route_from_supervisor(state: TravelPlanState) -> str:
 
     return "finish"
 
-
-def route_from_budget_tracker(state: TravelPlanState) -> str:
-    """Loop back to supervisor if over budget (max 2 re-routes to avoid infinite loops)."""
-    if state["budget_overrun"] and state.get("reroute_count", 0) < 2:
-        return "supervisor"
-    return END
 
 
 def build_graph() -> StateGraph:
@@ -72,14 +63,7 @@ def build_graph() -> StateGraph:
     ]:
         graph.add_edge(agent, "supervisor")
 
-    graph.add_conditional_edges(
-        "budget_tracker",
-        route_from_budget_tracker,
-        {
-            "supervisor": "supervisor",
-            END: END,
-        }
-    )
+    graph.add_edge("budget_tracker", END)
 
     return graph.compile()
 

@@ -6,7 +6,7 @@ from agents import (
     _structured_chain, researcher_chain, transport_chain,
     accommodation_chain, itinerary_chain, budget_chain,
 )
-from utils import infer_currency
+from utils import infer_currency, parse_transport_options
 from search import search_destination_info, search_transport_prices, search_accommodation_prices
 
 DEFAULT_BUDGET_ALLOCATION = {
@@ -68,25 +68,7 @@ def currency_inference_node(state: TravelPlanState) -> dict:
 
 
 def supervisor_node(state: TravelPlanState) -> dict:
-    updates: dict = {"step_count": state.get("step_count", 0) + 1}
-
-    if state.get("budget_overrun") and state.get("reroute_count", 0) < 2:
-        sym = state.get("currency_symbol", "")
-        cur = state.get("currency", "")
-        overrun = state.get("overrun_amount", 0)
-        updates["budget_constraint_message"] = (
-            f"BUDGET OVERRUN: trip is {sym}{overrun:,.0f} {cur} over the user's limit. "
-            "You MUST find significantly cheaper alternatives. Prioritise the absolute "
-            "cheapest options — hostels, buses, free activities."
-        )
-        # Clear plans so route_from_supervisor re-dispatches the agents
-        updates["transport_plan"] = None
-        updates["accommodation_plan"] = None
-        updates["itinerary"] = None
-        updates["budget_summary"] = None
-        updates["budget_overrun"] = False
-
-    return updates
+    return {"step_count": state.get("step_count", 0) + 1}
 
 
 def destination_researcher_node(state: TravelPlanState) -> dict:
@@ -110,11 +92,31 @@ def destination_researcher_node(state: TravelPlanState) -> dict:
     }
 
 
+_ZERO_TRANSPORT_PLAN = {
+    "intercity": {
+        "mode": "Not budgeted", "estimated_cost_per_person": 0,
+        "total_cost": 0, "booking_tips": "No transport budget allocated.",
+        "budget_airlines_or_options": [],
+    },
+    "local_transport": {"daily_cost_per_person": 0, "total_local_transport": 0, "recommended_options": []},
+    "airport_transfer": {"cost": 0, "recommended_mode": "N/A"},
+    "total_transport_cost": 0,
+    "within_budget": True,
+    "savings_tips": "",
+    "available_options": {"flights": [], "buses": [], "trains": []},
+}
+
+
 def transport_agent_node(state: TravelPlanState) -> dict:
-    live_data = search_transport_prices(
+    if _allocation_amount(state, "transport") == 0:
+        return {"transport_plan": _ZERO_TRANSPORT_PLAN}
+
+    transport_data = search_transport_prices(
         state["origin"], state["destination"], state["start_date"]
     )
-    
+    live_data = transport_data["text"]
+    llm_flights = transport_data.get("flights", [])
+
     print("Live Data : ", live_data)
 
     input_data = {
@@ -129,12 +131,14 @@ def transport_agent_node(state: TravelPlanState) -> dict:
         "real_time_search_data": live_data,
     }
     print("INPUT DATA : ", input_data)
-    if state.get("budget_constraint_message"):
-        input_data["constraint"] = state["budget_constraint_message"]
-
     result: TransportPlanOutput = transport_chain.invoke({"input": json.dumps(input_data)})
-    print("TRANSPORT AGENT DATA : ",result)
-    return {"transport_plan": result.model_dump()}
+    print("TRANSPORT AGENT DATA : ", result)
+    plan = result.model_dump()
+    available = parse_transport_options(live_data)
+    if llm_flights:
+        available["flights"] = llm_flights
+    plan["available_options"] = available
+    return {"transport_plan": plan}
 
 
 def accommodation_agent_node(state: TravelPlanState) -> dict:
@@ -153,8 +157,7 @@ def accommodation_agent_node(state: TravelPlanState) -> dict:
         "currency_symbol": state["currency_symbol"],
         "real_time_search_data": live_data,
     }
-    if state.get("budget_constraint_message"):
-        input_data["constraint"] = state["budget_constraint_message"]
+
 
     result: AccommodationPlanOutput = accommodation_chain.invoke({"input": json.dumps(input_data)})
     return {"accommodation_plan": result.model_dump()}
