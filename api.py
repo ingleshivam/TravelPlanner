@@ -120,7 +120,7 @@ async def create_travel_plan(request: TravelPlanRequest) -> Dict:
     try:
         result = await asyncio.wait_for(
             run_in_threadpool(travel_planner.invoke, initial_state),
-            timeout=120.0,
+            timeout=240.0,
         )
     except asyncio.TimeoutError:
         raise HTTPException(status_code=504, detail="Travel plan generation timed out after 120 seconds.")

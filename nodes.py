@@ -143,7 +143,7 @@ def transport_agent_node(state: TravelPlanState) -> dict:
 
 def accommodation_agent_node(state: TravelPlanState) -> dict:
     live_data = search_accommodation_prices(
-        state["destination"], state["travel_style"], state["num_days"]
+        state["destination"], state["start_date"], state["end_date"], state["num_travelers"],
     )
 
     input_data = {
@@ -160,6 +160,7 @@ def accommodation_agent_node(state: TravelPlanState) -> dict:
 
 
     result: AccommodationPlanOutput = accommodation_chain.invoke({"input": json.dumps(input_data)})
+    print("Accommodation chain result:", result)
     return {"accommodation_plan": result.model_dump()}
 
 

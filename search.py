@@ -57,12 +57,23 @@ def _strip_markup(text: str) -> str:
     text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
     return text
 
+def _strip_markup_for_accomodation(text: str) -> str:
+    lines = text.splitlines()
+    for i, l in enumerate(lines):
+        if l.strip().startswith('**'):
+            lines = lines[i:]
+            break
+    lines = [l for l in lines if not re.match(r'^\s*(\[!\[|!\[|-\s*!\[|\\\\)', l)]
+    text = '\n'.join(lines)
+    text = re.sub(r'!\[.*?\]\(.*?\)', '', text)
+    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+    text = re.sub(r'\n\s*\n+', '\n', text)
+    return '\n'.join(text.strip().splitlines()[:300])
 
 def _flight_url(origin_iata: str, dest_iata: str, date_ddmmyyyy: str) -> str:
     return (
         f"https://www.yatra.com/flight-schedule/{origin_iata}-to-{dest_iata}-flights.html"
     )
-
 
 def _bus_url(origin_city: str, dest_city: str, date_yyyymmdd: str) -> str:
     from_slug = origin_city.lower().replace(" ", "-")
@@ -71,7 +82,6 @@ def _bus_url(origin_city: str, dest_city: str, date_yyyymmdd: str) -> str:
     return (
         f"https://www.redbus.in/bus-tickets/{from_slug}-to-{to_slug}"
     )
-
 
 def _train_url(origin_code: str, dest_code: str, date_yyyymmdd: str,
                origin_name: str = "", dest_name: str = "") -> str:
@@ -85,7 +95,13 @@ def _train_url(origin_code: str, dest_code: str, date_yyyymmdd: str,
         url += f"&dstName={dest_name.replace(' ', '%20')}"
     return url
 
-
+def accomodation_url(checkin: str, checkout: str, travelers: str, destination: str) -> str:
+    room = 1
+    if travelers > 2:
+        room = travelers  / 2
+    return (
+        f"https://www.ixigo.com/hotels/search/result?locationName={destination}&checkinDate={checkin}&checkoutDate={checkout}&adultCount={travelers}&roomCount={int(room)}&childCount=0"
+    )
 
 def _extract_flights(markdown: str) -> str:
     if not markdown or len(markdown) < 100 or "(Scrape unavailable" in markdown:
@@ -120,7 +136,6 @@ def _extract_flights(markdown: str) -> str:
             results.append(entry)
 
     return "\n".join(results) if results else "No flights found."
-
 
 def _extract_buses(markdown: str) -> str:
     text = _strip_markup(markdown)
@@ -158,7 +173,6 @@ def _extract_buses(markdown: str) -> str:
 
     return "\n".join(results) if results else "No buses found."
 
-
 def _extract_trains(markdown: str) -> str:
     text = _strip_markup(markdown)
 
@@ -186,7 +200,6 @@ def _extract_trains(markdown: str) -> str:
         results.append(line)
 
     return "\n".join(results) if results else "No trains found."
-
 
 def search_transport_prices(origin: str, destination: str, start_date: str) -> str:
     class RouteCity(BaseModel):
@@ -303,17 +316,46 @@ def search_transport_prices(origin: str, destination: str, start_date: str) -> s
 
     return {"text": "\n\n".join(parts), "flights": llm_flights}
 
+def search_accommodation_prices(destination: str, checkin: str, checkout: str, travelers : str) -> str:
+    url = accomodation_url(checkin, checkout, travelers, destination)
+    content = _scrape(url, wait_ms=5000)
+    result = _strip_markup_for_accomodation(content)
 
-def search_accommodation_prices(destination: str, travel_style: str, num_days: int) -> str:
-    tier = "hostels" if travel_style == "budget-backpacker" else "budget hotels"
-    queries = [
-        f"{tier} in {destination} price per night 2025",
-        f"cheapest accommodation {destination} {num_days} nights booking",
-    ]
-    parts = []
-    for q in queries:
-        parts.append(web_search(q, max_results=2))
-    return "\n".join(parts)
+    class AccomodationInformation(BaseModel):
+        model_config = {"populate_by_name": True}
+        hotel_name: Optional[str] = Field(default=None, description="Hotel name. Key must be hotel_name.")
+        hotel_rating: Optional[str] = Field(default=None, description="Hotel rating. Key must be hotel_rating.")
+        hotel_price: Optional[str] = Field(default=None, description="Hotel price per night. Key must be hotel_price.")
+
+    class AccomodationResult(BaseModel):
+        hotels: List[AccomodationInformation] = Field(default_factory=list, description="List of all available hotels extracted from the data.")
+
+    hotel_chain = _structured_chain(
+        system_prompt=(
+            "Extract ALL available hotels from the given data. "
+            "Return a JSON object with a 'hotels' array. Each hotel must have: "
+            "hotel_name (name of the hotel), hotel_rating (star or user rating), hotel_price (price per night with currency symbol). "
+            "Respond with JSON only."
+        ),
+        schema=AccomodationResult,
+    )
+
+    parsed: AccomodationResult = hotel_chain.invoke({"input": result})
+    print("Accomodation Results : ", parsed)
+
+    lines = []
+    for h in parsed.hotels:
+        parts = []
+        if h.hotel_name:
+            parts.append(h.hotel_name)
+        if h.hotel_rating:
+            parts.append(f"Rating: {h.hotel_rating}")
+        if h.hotel_price:
+            parts.append(f"Price/night: {h.hotel_price}")
+        if parts:
+            lines.append(" | ".join(parts))
+
+    return "\n".join(lines) if lines else "No hotels found."
 
 
 def search_destination_info(destination: str, origin: str, num_days: int) -> str:
