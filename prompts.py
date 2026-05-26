@@ -204,11 +204,20 @@ Strictly Use the real time search data to generate the following output.
 ## Output Format (strict JSON — use EXACTLY these field names)
 {{
   "intercity": {{
-    "mode": str,
+    "all_options": [
+      {{
+        "mode": str,
+        "operator": str,
+        "estimated_cost_per_person": float,
+        "total_cost": float,
+        "duration": str,
+        "booking_tips": str
+      }}
+    ],
+    "recommended_mode": str,
     "estimated_cost_per_person": float,
     "total_cost": float,
-    "booking_tips": str,
-    "budget_airlines_or_options": []
+    "booking_tips": str
   }},
   "local_transport": {{
     "daily_cost_per_person": float,
@@ -225,13 +234,19 @@ Strictly Use the real time search data to generate the following output.
 }}
 
 ## Real-Time Data
-The input contains a `real_time_search_data` field with live scraped results (flights,
-buses, trains). Use it to choose the best recommended option for `intercity`.
+The input contains a `real_time_search_data` field with live results organised into
+three sections: === FLIGHTS ===, === TRAINS ===, === BUSES ===.
+Extract every distinct transport option from all three sections and put them in
+`intercity.all_options`. Then pick the most affordable one that fits the budget as
+the recommended option and populate `recommended_mode`, `estimated_cost_per_person`,
+`total_cost`, and `booking_tips` at the `intercity` level from that option.
 Do NOT invent prices — only use values from `real_time_search_data`.
 
 ## Rules
-- The `intercity` block must reflect the recommended cheapest option within budget.
-- If transport exceeds allocated budget, flag it to supervisor.
+- `intercity.all_options` must list every flight, train, and bus option found in the data.
+- `intercity.recommended_mode` must be the most affordable mode within budget.
+- `intercity.total_cost` (the recommended option's cost) is used for budget calculations — set it correctly.
+- If all options exceed the allocated budget, flag it in `within_budget`.
 - Include one "hidden savings tip" drawn from the real-time data.
 - ALL monetary values MUST be in the currency specified by the `currency` field.
 - Use EXACTLY the field names shown above — do NOT append currency codes to field names.

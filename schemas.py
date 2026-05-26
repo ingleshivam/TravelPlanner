@@ -1,5 +1,11 @@
-from pydantic import BaseModel, Field
-from typing import Any, List, Literal, Optional
+from pydantic import BaseModel, BeforeValidator, Field
+from typing import Annotated, Any, List, Literal, Optional
+
+
+def _null_to_zero(v: Any) -> float:
+    return float(v) if v is not None else 0.0
+
+FloatOrZero = Annotated[float, BeforeValidator(_null_to_zero)]
 
 
 # Destination Researcher
@@ -7,7 +13,7 @@ class DestinationOption(BaseModel):
     city: str
     country: str
     why_fits_budget: str
-    daily_cost_estimate: float
+    daily_cost_estimate: FloatOrZero = 0.0
     best_travel_months: str
     visa_notes: str
     confidence: Literal["high", "medium", "low"]
@@ -18,27 +24,35 @@ class DestinationResearchOutput(BaseModel):
 
 
 # Transport Agent
-class IntercityTransport(BaseModel):
+class TransportOption(BaseModel):
     mode: str
-    estimated_cost_per_person: float
-    total_cost: float
+    operator: str
+    estimated_cost_per_person: FloatOrZero = 0.0
+    total_cost: FloatOrZero = 0.0
+    duration: str = ""
+    booking_tips: str = ""
+
+class IntercityTransport(BaseModel):
+    all_options: List[TransportOption]
+    recommended_mode: str
+    estimated_cost_per_person: FloatOrZero = 0.0
+    total_cost: FloatOrZero = 0.0
     booking_tips: str
-    budget_airlines_or_options: List[Any]
 
 class LocalTransport(BaseModel):
-    daily_cost_per_person: float = 0.0
-    total_local_transport: float = 0.0
+    daily_cost_per_person: FloatOrZero = 0.0
+    total_local_transport: FloatOrZero = 0.0
     recommended_options: List[str] = []
 
 class AirportTransfer(BaseModel):
-    cost: float = 0.0
+    cost: FloatOrZero = 0.0
     recommended_mode: str = "N/A"
 
 class TransportPlanOutput(BaseModel):
     intercity: IntercityTransport
     local_transport: LocalTransport = Field(default_factory=LocalTransport)
     airport_transfer: AirportTransfer = Field(default_factory=AirportTransfer)
-    total_transport_cost: float = 0.0
+    total_transport_cost: FloatOrZero = 0.0
     within_budget: bool = True
     savings_tips: str = ""
 
@@ -47,8 +61,8 @@ class TransportPlanOutput(BaseModel):
 class AccommodationOption(BaseModel):
     tier: Literal["budget", "best_value", "stretch"]
     type: str
-    estimated_price_per_night: float
-    total_cost: float
+    estimated_price_per_night: FloatOrZero = 0.0
+    total_cost: FloatOrZero = 0.0
     location_notes: str
     amenities: List[str]
     booking_platform: str
@@ -57,18 +71,18 @@ class AccommodationOption(BaseModel):
 class AccommodationPlanOutput(BaseModel):
     options: List[AccommodationOption]
     recommended_tier: Optional[Literal["budget", "best_value", "stretch"]] = None
-    total_accommodation_cost: float
+    total_accommodation_cost: FloatOrZero = 0.0
     within_budget: bool
 
 
 # Itinerary Agent
 class Meal(BaseModel):
     place_type: str
-    cost: float
+    cost: FloatOrZero = 0.0
 
 class Activity(BaseModel):
     activity: str
-    cost: float
+    cost: FloatOrZero = 0.0
 
 class DayPlan(BaseModel):
     day: int
@@ -79,33 +93,33 @@ class DayPlan(BaseModel):
     lunch: Meal
     evening: Activity
     dinner: Meal
-    local_transport: float
-    day_total: float
+    local_transport: FloatOrZero = 0.0
+    day_total: FloatOrZero = 0.0
     budget_tip: str
 
 class ItineraryOutput(BaseModel):
-    daily_budget_target: float
+    daily_budget_target: FloatOrZero = 0.0
     itinerary: List[DayPlan]
-    total_food_and_activities: float
+    total_food_and_activities: FloatOrZero = 0.0
     free_time_suggestions: List[str]
     money_saving_hacks: List[str]
 
 
 # Budget Tracker
 class CostBreakdown(BaseModel):
-    flights_and_intercity_transport: float
-    local_transport: float
-    accommodation: float
-    food: float
-    activities: float
-    airport_transfers: float
-    emergency_buffer_10pct: float
+    flights_and_intercity_transport: FloatOrZero = 0.0
+    local_transport: FloatOrZero = 0.0
+    accommodation: FloatOrZero = 0.0
+    food: FloatOrZero = 0.0
+    activities: FloatOrZero = 0.0
+    airport_transfers: FloatOrZero = 0.0
+    emergency_buffer_10pct: FloatOrZero = 0.0
 
 class BudgetSummaryInner(BaseModel):
-    total_budget: float
+    total_budget: FloatOrZero = 0.0
     breakdown: CostBreakdown
-    total_estimated_cost: float
-    remaining_buffer: float
+    total_estimated_cost: FloatOrZero = 0.0
+    remaining_buffer: FloatOrZero = 0.0
     status: Literal["WITHIN_BUDGET", "OVER_BUDGET", "TIGHT_FIT"]
     verdict: str
     top_savings_opportunities: List[str]

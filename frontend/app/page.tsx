@@ -30,6 +30,10 @@ type TravelPlan = {
   itinerary?: Record<string, any> | null;
   budget_summary?: Record<string, any> | null;
   final_plan_ready: boolean;
+  raw_search_destination?: string | null;
+  raw_search_transport?: string | null;
+  raw_search_accommodation?: string | null;
+  raw_search_itinerary?: string | null;
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -43,11 +47,11 @@ const defaultAllocation: Allocation = {
 };
 
 export default function Home() {
-  const [budget, setBudget] = useState(1000);
-  const [origin, setOrigin] = useState("pune");
-  const [destination, setDestination] = useState("mumbai");
-  const [startDate, setStartDate] = useState("2026-05-26");
-  const [endDate, setEndDate] = useState("2026-05-27");
+  const [budget, setBudget] = useState(15000);
+  const [origin, setOrigin] = useState("Pune");
+  const [destination, setDestination] = useState("Mumbai");
+  const [startDate, setStartDate] = useState("2026-05-27");
+  const [endDate, setEndDate] = useState("2026-05-28");
   const [days, setDays] = useState(1);
   const [travelers, setTravelers] = useState(1);
   const [style, setStyle] = useState<TravelStyle>("budget-backpacker");
@@ -131,45 +135,48 @@ export default function Home() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* ── LEFT SIDEBAR: Input Form ───────────────────────────────── */}
-      <aside className="w-[30%] min-w-[280px] max-w-[420px] border-r border-border bg-card flex flex-col overflow-hidden shrink-0">
+      <aside className="w-[32%] min-w-[300px] max-w-[480px] border-r border-border bg-card flex flex-col overflow-hidden shrink-0">
         {/* Sidebar header */}
-        <div className="px-5 py-4 border-b border-border shrink-0">
-          <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1">
-            ✨ AI Travel Planner
-          </p>
-          <h1 className="text-lg font-bold text-foreground leading-tight mb-1">
-            Plan Your Trip
+        <div className="px-6 py-5 border-b border-border shrink-0 bg-gradient-to-br from-card to-secondary/30">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-2xl">✈️</span>
+            <p className="text-xs font-bold text-primary uppercase tracking-widest">
+              Travel Planner
+            </p>
+          </div>
+          <h1 className="text-2xl font-bold text-foreground leading-tight mb-2">
+            Plan Your Adventure
           </h1>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Fill in your details and generate a complete budget-aware travel
-            plan.
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Tell us where you want to go and we&apos;ll create a perfectly
+            balanced budget plan.
           </p>
         </div>
 
         {/* Scrollable form */}
         <div className="flex-1 overflow-y-auto">
-          <form onSubmit={submitPlan} className="p-5 space-y-4">
+          <form onSubmit={submitPlan} className="p-6 space-y-5">
             {/* Budget & Travelers */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-foreground">
-                  Total Budget
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-semibold text-foreground">
+                  Budget
                 </label>
                 <input
-                  className="form-input"
+                  className="px-3 py-2.5 rounded-lg border border-border bg-white text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
                   type="number"
                   min="1"
                   value={budget}
                   onChange={(e) => setBudget(Number(e.target.value))}
-                  placeholder="1000"
+                  placeholder="15000"
                 />
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-foreground flex items-center gap-1">
-                  <span>Travelers</span>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-semibold text-foreground">
+                  Travelers
                 </label>
                 <input
-                  className="form-input"
+                  className="px-3 py-2.5 rounded-lg border border-border bg-white text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
                   type="number"
                   min="1"
                   value={travelers}
@@ -179,25 +186,25 @@ export default function Home() {
             </div>
 
             {/* Origin */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-foreground flex items-center gap-1">
-                <MapPin size={12} className="text-primary" /> Origin
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <MapPin size={16} className="text-primary" /> Origin
               </label>
               <input
-                className="form-input"
+                className="px-3 py-2.5 rounded-lg border border-border bg-white text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
                 value={origin}
                 onChange={(e) => setOrigin(e.target.value)}
-                placeholder="e.g. Pune, India"
+                placeholder="e.g. Pune"
               />
             </div>
 
             {/* Destination */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-foreground flex items-center gap-1">
-                <MapPin size={12} className="text-primary" /> Destination
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <MapPin size={16} className="text-primary" /> Destination
               </label>
               <input
-                className="form-input"
+                className="px-3 py-2.5 rounded-lg border border-border bg-white text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
                 placeholder="Leave blank for AI recommendation"
@@ -205,24 +212,24 @@ export default function Home() {
             </div>
 
             {/* Dates */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-foreground flex items-center gap-1">
-                  <Calendar size={12} className="text-primary" /> Start
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <Calendar size={16} className="text-primary" /> Start
                 </label>
                 <input
-                  className="form-input"
+                  className="px-3 py-2.5 rounded-lg border border-border bg-white text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
                   type="date"
                   value={startDate}
                   onChange={(e) => handleStartDate(e.target.value)}
                 />
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-foreground flex items-center gap-1">
-                  <Calendar size={12} className="text-primary" /> End
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <Calendar size={16} className="text-primary" /> End
                 </label>
                 <input
-                  className="form-input"
+                  className="px-3 py-2.5 rounded-lg border border-border bg-white text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
                   type="date"
                   value={endDate}
                   onChange={(e) => handleEndDate(e.target.value)}
@@ -231,25 +238,24 @@ export default function Home() {
             </div>
 
             {/* Days (auto) */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-foreground">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-semibold text-foreground">
                 Duration
               </label>
-              <input
-                className="form-input opacity-60 cursor-not-allowed"
-                type="number"
-                value={days}
-                readOnly
-              />
+              <div className="px-3 py-2.5 rounded-lg border border-border bg-muted/50 text-foreground flex items-center">
+                <span className="font-medium">
+                  {days} day{days !== 1 ? "s" : ""}
+                </span>
+              </div>
             </div>
 
             {/* Travel style */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-foreground flex items-center gap-1">
-                <Zap size={12} className="text-primary" /> Travel Style
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Zap size={16} className="text-primary" /> Travel Style
               </label>
               <select
-                className="form-input"
+                className="px-3 py-2.5 rounded-lg border border-border bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
                 value={style}
                 onChange={(e) => setStyle(e.target.value as TravelStyle)}
               >
@@ -260,15 +266,15 @@ export default function Home() {
             </div>
 
             {/* Interests */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-foreground">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-semibold text-foreground">
                 Interests
               </label>
               <input
-                className="form-input"
+                className="px-3 py-2.5 rounded-lg border border-border bg-white text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
                 value={interests}
                 onChange={(e) => setInterests(e.target.value)}
-                placeholder="e.g. culture, street food, temples"
+                placeholder="culture, temples, street food..."
               />
               <span className="text-xs text-muted-foreground">
                 Comma-separated
@@ -276,23 +282,23 @@ export default function Home() {
             </div>
 
             {/* Budget allocation */}
-            <div className="border-t border-border pt-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-foreground uppercase tracking-wide">
-                  Budget Split
+            <div className="border-t border-border pt-5">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm font-bold text-foreground uppercase tracking-wider">
+                  Budget Allocation
                 </span>
                 <span
-                  className={`text-xs font-bold px-2 py-0.5 rounded-full ${allocationTotal > 100 ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}
+                  className={`text-xs font-bold px-3 py-1 rounded-full ${allocationTotal > 100 ? "bg-destructive/10 text-destructive" : "bg-green-100/50 text-green-700"}`}
                 >
                   {allocationTotal}%
                 </span>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {(Object.keys(allocation) as (keyof Allocation)[]).map(
                   (key) => (
-                    <div key={key} className="flex flex-col gap-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground capitalize">
+                    <div key={key} className="flex flex-col gap-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground font-medium capitalize">
                           {key.replace(/_/g, " ")}
                         </span>
                         <span className="font-semibold text-primary">
@@ -307,7 +313,7 @@ export default function Home() {
                         onChange={(e) =>
                           updateAllocation(key, Number(e.target.value))
                         }
-                        className="w-full h-1.5 bg-secondary rounded-full appearance-none cursor-pointer accent-primary"
+                        className="w-full h-2 bg-secondary rounded-full appearance-none cursor-pointer accent-primary"
                       />
                     </div>
                   ),
@@ -316,8 +322,8 @@ export default function Home() {
             </div>
 
             {error && (
-              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs">
-                <AlertCircle size={14} className="shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 p-3 bg-destructive/5 border border-destructive/20 text-destructive rounded-lg text-sm">
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
             )}
@@ -325,17 +331,17 @@ export default function Home() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+              className="w-full py-3 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold rounded-lg disabled:opacity-60 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 mt-2"
             >
               {loading ? (
                 <>
                   <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                  Planning...
+                  <span>Planning your trip...</span>
                 </>
               ) : (
                 <>
-                  <Zap size={15} />
-                  Generate Travel Plan
+                  <Zap size={18} />
+                  Generate Plan
                 </>
               )}
             </button>
@@ -347,28 +353,30 @@ export default function Home() {
       <main className="flex-1 overflow-y-auto bg-background">
         {loading ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-            <div className="w-10 h-10 border-4 border-border border-t-primary rounded-full animate-spin" />
+            <div className="w-12 h-12 border-4 border-border border-t-primary rounded-full animate-spin" />
             <div className="text-center">
-              <p className="font-semibold text-foreground">
+              <p className="font-semibold text-foreground text-lg">
                 Planning your adventure...
               </p>
-              <p className="text-sm mt-1">This may take a moment</p>
+              <p className="text-sm mt-2 text-muted-foreground">
+                This may take a moment
+              </p>
             </div>
           </div>
         ) : plan ? (
-          <div className="p-6">
+          <div className="p-8">
             <PlanResult plan={plan} />
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground px-8">
-            <PlaneTakeoff size={52} className="text-border" />
+          <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground px-8">
+            <PlaneTakeoff size={60} className="text-border/50" />
             <div className="text-center">
-              <h2 className="text-xl font-bold text-foreground mb-2">
-                Your travel plan will appear here
+              <h2 className="text-2xl font-bold text-foreground mb-3">
+                Your travel plan awaits
               </h2>
-              <p className="text-sm max-w-xs">
+              <p className="text-base text-muted-foreground max-w-sm">
                 Fill in your travel details on the left and click "Generate
-                Travel Plan" to get started.
+                Plan" to get started.
               </p>
             </div>
           </div>
@@ -397,71 +405,107 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
         : "ready";
 
   return (
-    <section className="results">
-      <div className="resultHeader">
-        <div>
-          <p className="eyebrow">🎉 Your Generated Plan</p>
-          <h2>{plan.destination || "Recommended destination"}</h2>
+    <section className="max-w-4xl mx-auto space-y-8">
+      <div className="flex flex-col gap-3 mb-8">
+        <div className="flex items-baseline gap-3">
+          <h2 className="text-4xl font-bold text-foreground">
+            {plan.destination || "Recommended destination"}
+          </h2>
+          <div
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold ${
+              plan.final_plan_ready
+                ? "bg-green-100/50 text-green-700"
+                : summary?.status === "TIGHT_FIT"
+                  ? "bg-yellow-100/50 text-yellow-700"
+                  : "bg-destructive/10 text-destructive"
+            }`}
+          >
+            {plan.final_plan_ready ? (
+              <>
+                <CheckCircle size={16} /> Ready to Go
+              </>
+            ) : summary?.status === "TIGHT_FIT" ? (
+              <>
+                <AlertCircle size={16} /> Tight Fit
+              </>
+            ) : (
+              <>
+                <AlertCircle size={16} /> Review Budget
+              </>
+            )}
+          </div>
         </div>
-        <div className={`status ${statusClass}`}>
-          {plan.final_plan_ready ? (
-            <span className="flex items-center gap-2">
-              <CheckCircle size={16} /> Ready to Go
-            </span>
-          ) : summary?.status === "TIGHT_FIT" ? (
-            <span className="flex items-center gap-2">
-              <AlertCircle size={16} /> Tight Fit
-            </span>
-          ) : (
-            <span className="flex items-center gap-2">
-              <AlertCircle size={16} /> Review Budget
-            </span>
-          )}
-        </div>
+        <p className="text-muted-foreground">
+          🎉 Your AI-generated travel plan
+        </p>
       </div>
 
       {/* Budget Summary */}
       {summary && (
-        <div className="panel p-6">
-          <h3>Budget Summary</h3>
-          <div className="metrics">
-            <Metric
+        <div className="bg-card rounded-2xl border border-border p-8">
+          <h3 className="text-xl font-bold text-foreground mb-6">
+            Budget Summary
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+            <MetricCard
               label="Your Budget"
               value={money(summary.total_budget, plan)}
             />
-            <Metric
+            <MetricCard
               label="Estimated Total"
               value={money(summary.total_estimated_cost, plan)}
             />
-            <Metric
+            <MetricCard
               label="Remaining"
               value={money(summary.remaining_buffer, plan)}
             />
-            <Metric label="Status" value={summary.status.replace(/_/g, " ")} />
+            <MetricCard
+              label="Status"
+              value={summary.status.replace(/_/g, " ")}
+            />
           </div>
-          <p className="verdict">{summary.verdict}</p>
+
+          <p className="text-muted-foreground mb-6 leading-relaxed">
+            {summary.verdict}
+          </p>
 
           {summary.breakdown && (
-            <div className="breakdown">
-              <p className="section-label">Cost Breakdown</p>
-              {Object.entries(summary.breakdown as Record<string, number>).map(
-                ([k, v]) => (
-                  <div className="breakdown-row" key={k}>
-                    <span>{k.replace(/_/g, " ")}</span>
-                    <strong>{money(v, plan)}</strong>
+            <div className="mb-6">
+              <p className="text-sm font-bold text-foreground uppercase tracking-wide mb-4">
+                Cost Breakdown
+              </p>
+              <div className="space-y-3">
+                {Object.entries(
+                  summary.breakdown as Record<string, number>,
+                ).map(([k, v]) => (
+                  <div className="flex justify-between items-center" key={k}>
+                    <span className="text-muted-foreground capitalize">
+                      {k.replace(/_/g, " ")}
+                    </span>
+                    <strong className="text-foreground">
+                      {money(v, plan)}
+                    </strong>
                   </div>
-                ),
-              )}
+                ))}
+              </div>
             </div>
           )}
 
           {summary.top_savings_opportunities?.length > 0 && (
-            <div className="tips-box">
-              <p className="section-label">💰 Savings Opportunities</p>
-              <ul className="tip-list">
+            <div className="bg-accent/5 rounded-xl p-4 border border-accent/10">
+              <p className="text-sm font-bold text-foreground mb-3">
+                💰 Savings Opportunities
+              </p>
+              <ul className="space-y-2">
                 {summary.top_savings_opportunities.map(
                   (tip: string, i: number) => (
-                    <li key={i}>{tip}</li>
+                    <li
+                      key={i}
+                      className="text-sm text-muted-foreground flex gap-2"
+                    >
+                      <span className="text-accent">•</span>
+                      {tip}
+                    </li>
                   ),
                 )}
               </ul>
@@ -472,33 +516,45 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
 
       {/* Destination Research */}
       {research?.destinations?.length > 0 && (
-        <div className="panel p-6">
-          <h3>Destination Options</h3>
-          <p className="text-muted-foreground text-sm mb-4">
-            AI-recommended based on your budget
+        <div className="space-y-4">
+          <h3 className="text-xl font-bold text-foreground">
+            Destination Options
+          </h3>
+          <p className="text-muted-foreground text-sm">
+            AI-recommended based on your budget and interests
           </p>
-          <div className="dest-grid">
+          <div className="grid gap-4">
             {research?.destinations.map((d: any, i: number) => (
               <div
-                className={`dest-card ${d.city === plan.destination?.split(",")[0] ? "dest-card--selected" : ""}`}
+                className={`bg-card rounded-2xl border-2 p-6 transition ${
+                  d.city === plan.destination?.split(",")[0]
+                    ? "border-primary/30 bg-primary/5"
+                    : "border-border"
+                }`}
                 key={i}
               >
-                <div className="dest-card-header">
-                  <strong>
-                    {d.city}, {d.country}
-                  </strong>
-                  <span
-                    className={`confidence confidence--${d.confidence?.toLowerCase()}`}
-                  >
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div>
+                    <h4 className="font-bold text-foreground">
+                      {d.city}, {d.country}
+                    </h4>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {d.why_fits_budget}
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-primary/10 text-primary whitespace-nowrap">
                     {d.confidence}
                   </span>
                 </div>
-                <p>{d.why_fits_budget}</p>
-                <div className="dest-meta">
+                <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                   <span>~{money(d.daily_cost_estimate, plan)}/day</span>
                   <span>{d.best_travel_months}</span>
                 </div>
-                {d.visa_notes && <p className="visa-note">{d.visa_notes}</p>}
+                {d.visa_notes && (
+                  <p className="text-xs text-muted-foreground mt-3 italic">
+                    {d.visa_notes}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -507,271 +563,298 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
 
       {/* Transport */}
       {transport && (
-        <div className="panel p-6">
-          <h3>Getting Around</h3>
+        <div className="space-y-4">
+          <h3 className="text-xl font-bold text-foreground">Getting Around</h3>
+          <div className="space-y-4">
+            {(
+              [
+                { key: "flight", label: "Flights", icon: "✈️" },
+                { key: "train", label: "Trains", icon: "🚂" },
+                { key: "bus", label: "Buses", icon: "🚌" },
+              ] as const
+            ).map(({ key, label, icon }) => {
+              const aiOptions = (
+                (transport.intercity?.all_options || []) as any[]
+              ).filter((o) => o.mode?.toLowerCase().includes(key));
+              const rawByMode: Record<string, any[]> = {
+                flight: transport.available_options?.flights || [],
+                train: transport.available_options?.trains || [],
+                bus: transport.available_options?.buses || [],
+              };
+              const rawOptions: any[] = rawByMode[key] || [];
+              if (!aiOptions.length && !rawOptions.length) return null;
 
-          {/* Recommended intercity option */}
-          <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl mb-5">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
-                Recommended
-              </span>
-              <span className="text-lg font-semibold text-primary capitalize">
-                {transport.intercity?.mode}
-              </span>
-            </div>
-            <div className="kv-list">
-              <div>
-                <span>Cost per person</span>
-                <strong>
-                  {money(transport.intercity?.estimated_cost_per_person, plan)}
-                </strong>
-              </div>
-              <div>
-                <span>Total cost</span>
-                <strong>{money(transport.intercity?.total_cost, plan)}</strong>
-              </div>
-            </div>
-            <p className="muted-text mt-1">
-              {transport.intercity?.booking_tips}
-            </p>
-          </div>
+              const isRecommended = transport.intercity?.recommended_mode
+                ?.toLowerCase()
+                .includes(key);
+              const optionCount = aiOptions.length || rawOptions.length;
 
-          {/* All available options grouped by type */}
-          {transport.available_options && (
-            <div className="mt-2">
-              <p className="section-label">All Available Options</p>
+              return (
+                <div
+                  key={key}
+                  className={`rounded-2xl border-2 overflow-hidden ${
+                    isRecommended
+                      ? "border-primary/30 bg-primary/5"
+                      : "border-border bg-card"
+                  }`}
+                >
+                  <div
+                    className={`flex items-center gap-3 px-6 py-4 ${
+                      isRecommended ? "bg-primary/10" : "bg-secondary/30"
+                    }`}
+                  >
+                    <span className="text-2xl">{icon}</span>
+                    <span className="text-lg font-bold text-foreground">
+                      {label}
+                    </span>
+                    {isRecommended && (
+                      <span className="px-3 py-1 bg-green-100/50 text-green-700 text-xs font-bold rounded-full">
+                        ✓ Recommended
+                      </span>
+                    )}
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      {optionCount} option{optionCount > 1 ? "s" : ""}
+                    </span>
+                  </div>
 
-              {/* Trains */}
-              {transport.available_options.trains?.length > 0 && (
-                <div className="mb-5">
-                  <p className="text-sm font-bold text-foreground mb-2">
-                    🚂 Trains
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {transport.available_options.trains.map(
-                      (t: any, i: number) => (
+                  {/* AI-processed options — 3-column grid */}
+                  {aiOptions.length > 0 && (
+                    <div className="grid grid-cols-3 gap-3 p-4">
+                      {aiOptions.map((opt: any, i: number) => (
                         <div
                           key={i}
-                          className="p-3 bg-secondary border border-border rounded-xl"
+                          className="flex flex-col gap-2 bg-background border border-border rounded-xl p-4"
                         >
-                          <p className="text-sm font-semibold text-foreground mb-1">
-                            {t.train_number} · {t.name}
+                          <p className="font-semibold text-foreground text-sm leading-snug">
+                            {opt.operator}
                           </p>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            {t.departure} → {t.arrival}
-                          </p>
-                          {t.classes?.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                              {t.classes.map((cls: any, j: number) => (
-                                <span
-                                  key={j}
-                                  className="px-2.5 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded-full"
-                                >
-                                  {cls.class_name}: {plan.currency_symbol}
-                                  {Number(cls.price).toLocaleString()}
-                                </span>
-                              ))}
-                            </div>
+                          {opt.duration && (
+                            <p className="text-xs text-muted-foreground">
+                              ⏱ {opt.duration}
+                            </p>
+                          )}
+                          <div className="mt-auto pt-2 border-t border-border">
+                            {opt.estimated_cost_per_person > 0 && (
+                              <>
+                                <p className="text-xl font-bold text-primary leading-tight">
+                                  {money(opt.estimated_cost_per_person, plan)}
+                                </p>
+                                <p className="text-xs text-muted-foreground">per person</p>
+                              </>
+                            )}
+                            {opt.total_cost > 0 && (
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                Total: <strong className="text-foreground">{money(opt.total_cost, plan)}</strong>
+                              </p>
+                            )}
+                          </div>
+                          {opt.booking_tips && (
+                            <p className="text-xs text-muted-foreground bg-secondary rounded-lg px-2 py-1.5 leading-relaxed">
+                              💡 {opt.booking_tips}
+                            </p>
                           )}
                         </div>
-                      ),
-                    )}
-                  </div>
-                </div>
-              )}
+                      ))}
+                    </div>
+                  )}
 
-              {/* Buses */}
-              {transport.available_options.buses?.length > 0 && (
-                <div className="mb-5">
-                  <p className="text-sm font-bold text-foreground mb-2">
-                    🚌 Buses
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {transport.available_options.buses.map(
-                      (b: any, i: number) => (
-                        <div
-                          key={i}
-                          className="p-3 bg-secondary border border-border rounded-xl"
-                        >
-                          <div className="flex items-start justify-between gap-2 mb-1">
-                            <span className="text-sm font-semibold text-foreground">
+                  {/* Fallback: raw parsed options — 3-column grid */}
+                  {aiOptions.length === 0 && rawOptions.length > 0 && (
+                    <div className="grid grid-cols-3 gap-3 p-4">
+                      {key === "train" &&
+                        rawOptions.map((t: any, i: number) => (
+                          <div
+                            key={i}
+                            className="flex flex-col gap-2 bg-background border border-border rounded-xl p-4"
+                          >
+                            <p className="font-semibold text-foreground text-sm leading-snug">
+                              {t.train_number} · {t.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {t.departure} → {t.arrival}
+                            </p>
+                            {t.classes?.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 mt-1">
+                                {t.classes.map((cls: any, j: number) => (
+                                  <span
+                                    key={j}
+                                    className="px-2 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded-full"
+                                  >
+                                    {cls.class_name}: {plan.currency_symbol}
+                                    {Number(cls.price).toLocaleString()}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      {key === "bus" &&
+                        rawOptions.map((b: any, i: number) => (
+                          <div
+                            key={i}
+                            className="flex flex-col gap-2 bg-background border border-border rounded-xl p-4"
+                          >
+                            <p className="font-semibold text-foreground text-sm leading-snug">
                               {b.operator}
-                            </span>
-                            <span className="text-sm font-bold text-primary whitespace-nowrap">
-                              {plan.currency_symbol}
-                              {Number(b.price).toLocaleString()}
-                            </span>
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-1.5">
-                            {b.departure} → {b.arrival}
-                            {b.duration && (
-                              <span className="ml-2 text-xs bg-background px-1.5 py-0.5 rounded">
-                                {b.duration}
-                              </span>
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {b.departure} → {b.arrival}
+                              {b.duration && (
+                                <span className="ml-1.5 bg-secondary px-1.5 py-0.5 rounded">
+                                  {b.duration}
+                                </span>
+                              )}
+                            </p>
+                            <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                              {b.bus_type && <span>{b.bus_type}</span>}
+                              {b.seats_available > 0 && <span>{b.seats_available} seats</span>}
+                              {b.rating && <span>⭐ {b.rating}</span>}
+                            </div>
+                            {b.price > 0 && (
+                              <p className="text-xl font-bold text-primary mt-auto pt-2 border-t border-border">
+                                {plan.currency_symbol}{Number(b.price).toLocaleString()}
+                              </p>
                             )}
-                          </p>
-                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                            {b.bus_type && <span>{b.bus_type}</span>}
-                            {b.seats_available > 0 && (
-                              <span>{b.seats_available} seats left</span>
-                            )}
-                            {b.rating && <span>⭐ {b.rating}</span>}
                           </div>
-                        </div>
-                      ),
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Flights */}
-              {transport.available_options.flights?.length > 0 && (
-                <div className="mb-5">
-                  <p className="text-sm font-bold text-foreground mb-2">
-                    ✈️ Flights
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {transport.available_options.flights.map(
-                      (f: any, i: number) => (
-                        <div
-                          key={i}
-                          className="p-3 bg-secondary border border-border rounded-xl"
-                        >
-                          <div className="flex items-start justify-between gap-2 mb-1">
-                            <span className="text-sm font-semibold text-foreground">
+                        ))}
+                      {key === "flight" &&
+                        rawOptions.map((f: any, i: number) => (
+                          <div
+                            key={i}
+                            className="flex flex-col gap-2 bg-background border border-border rounded-xl p-4"
+                          >
+                            <p className="font-semibold text-foreground text-sm leading-snug">
                               {f.airline}
                               {f.flight_number ? ` · ${f.flight_number}` : ""}
-                            </span>
-                            <span className="text-sm font-bold text-primary whitespace-nowrap">
-                              {plan.currency_symbol}
-                              {Number(f.price).toLocaleString()}
-                            </span>
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-1.5">
-                            {f.departure} → {f.arrival}
-                            {f.duration && (
-                              <span className="ml-2 text-xs bg-background px-1.5 py-0.5 rounded">
-                                {f.duration}
-                              </span>
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {f.departure} → {f.arrival}
+                              {f.duration && (
+                                <span className="ml-1.5 bg-secondary px-1.5 py-0.5 rounded">
+                                  {f.duration}
+                                </span>
+                              )}
+                            </p>
+                            <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                              {f.seat_class && <span>{f.seat_class}</span>}
+                              {f.seats_available > 0 && <span>{f.seats_available} seats</span>}
+                            </div>
+                            {f.price > 0 && (
+                              <p className="text-xl font-bold text-primary mt-auto pt-2 border-t border-border">
+                                {plan.currency_symbol}{Number(f.price).toLocaleString()}
+                              </p>
                             )}
-                          </p>
-                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                            {f.seat_class && <span>{f.seat_class}</span>}
-                            {f.seats_available > 0 && (
-                              <span>{f.seats_available} seats left</span>
-                            )}
                           </div>
-                        </div>
-                      ),
-                    )}
-                  </div>
+                        ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* Local transport & airport transfer */}
-          <div className="grid two" style={{ marginTop: 20 }}>
-            {/* <div>
-              <p className="section-label">Local Transport</p>
-              <div className="kv-list">
-                <div>
-                  <span>Daily per person</span>
-                  <strong>{money(transport.local_transport?.daily_cost_per_person, plan)}</strong>
-                </div>
-                <div>
-                  <span>Total</span>
-                  <strong>{money(transport.local_transport?.total_local_transport, plan)}</strong>
-                </div>
-              </div>
-              {transport.local_transport?.recommended_options?.length > 0 && (
-                <ul className="option-chips">
-                  {transport.local_transport.recommended_options.map((opt: string, i: number) => (
-                    <li key={i}>{opt}</li>
-                  ))}
-                </ul>
-              )}
-            </div> */}
-            <div>
-              <p className="section-label">Airport Transfer</p>
-              <div className="kv-list">
-                <div>
-                  <span>Mode</span>
-                  <strong>
-                    {transport.airport_transfer?.recommended_mode}
-                  </strong>
-                </div>
-                <div>
-                  <span>Cost</span>
-                  <strong>
-                    {money(transport.airport_transfer?.cost, plan)}
-                  </strong>
-                </div>
-              </div>
-            </div>
+              );
+            })}
           </div>
 
+          {transport.airport_transfer?.recommended_mode &&
+            transport.airport_transfer.recommended_mode !== "N/A" && (
+              <div className="flex items-center justify-between px-6 py-4 bg-secondary/30 rounded-2xl border border-border">
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Airport Transfer
+                  </p>
+                  <p className="text-base font-semibold text-foreground mt-1">
+                    {transport.airport_transfer.recommended_mode}
+                  </p>
+                </div>
+                {transport.airport_transfer.cost > 0 && (
+                  <p className="text-xl font-bold text-primary">
+                    {money(transport.airport_transfer.cost, plan)}
+                  </p>
+                )}
+              </div>
+            )}
+
           {transport.savings_tips && (
-            <p className="savings-tip">💡 {transport.savings_tips}</p>
+            <p className="text-sm text-muted-foreground bg-accent/5 rounded-xl p-4 border border-accent/10">
+              💡 {transport.savings_tips}
+            </p>
           )}
         </div>
       )}
 
       {/* Accommodation */}
       {accommodation && (
-        <div className="panel p-6">
-          <h3>Where to Stay</h3>
+        <div className="space-y-4">
+          <h3 className="text-xl font-bold text-foreground">Where to Stay</h3>
           {accommodation.options?.length > 0 ? (
-            <div className="accom-grid">
+            <div className="grid gap-4">
               {accommodation.options.map((opt: any, i: number) => (
                 <div
-                  className={`accom-card ${opt.tier === accommodation.recommended_tier ? "accom-card--recommended" : ""}`}
+                  className={`bg-card rounded-2xl border-2 p-6 transition ${
+                    opt.tier === accommodation.recommended_tier
+                      ? "border-primary/30 bg-primary/5"
+                      : "border-border"
+                  }`}
                   key={i}
                 >
-                  <div className="accom-card-header">
-                    <span
-                      className={`tier-badge tier-badge--${opt.tier?.replace(" ", "_").toLowerCase()}`}
-                    >
-                      {opt.tier}
-                    </span>
+                  <div className="flex items-start justify-between gap-4 mb-3">
+                    <div>
+                      <h4 className="font-bold text-foreground">{opt.type}</h4>
+                      <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wide">
+                        {opt.tier}
+                      </p>
+                    </div>
                     {opt.tier === accommodation.recommended_tier && (
-                      <span className="recommended-tag">Recommended</span>
+                      <span className="text-xs font-bold px-3 py-1 rounded-full bg-green-100/50 text-green-700">
+                        Recommended
+                      </span>
                     )}
                   </div>
-                  <p className="accom-type">{opt.type}</p>
-                  <div className="kv-list">
+                  <div className="grid grid-cols-3 gap-4 mb-4 py-4 border-y border-border">
                     <div>
-                      <span>Per night</span>
-                      <strong>
+                      <p className="text-xs text-muted-foreground">Per night</p>
+                      <p className="font-bold text-foreground mt-1">
                         {money(opt.estimated_price_per_night, plan)}
-                      </strong>
+                      </p>
                     </div>
                     <div>
-                      <span>Total stay</span>
-                      <strong>{money(opt.total_cost, plan)}</strong>
+                      <p className="text-xs text-muted-foreground">
+                        Total stay
+                      </p>
+                      <p className="font-bold text-foreground mt-1">
+                        {money(opt.total_cost, plan)}
+                      </p>
                     </div>
                     <div>
-                      <span>Book via</span>
-                      <strong>{opt.booking_platform}</strong>
+                      <p className="text-xs text-muted-foreground">Book via</p>
+                      <p className="font-bold text-foreground mt-1 text-sm">
+                        {opt.booking_platform}
+                      </p>
                     </div>
                   </div>
-                  <p className="muted-text">{opt.location_notes}</p>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    {opt.location_notes}
+                  </p>
                   {opt.amenities?.length > 0 && (
-                    <ul className="option-chips">
+                    <div className="flex flex-wrap gap-2 mb-3">
                       {opt.amenities.map((a: string, j: number) => (
-                        <li key={j}>{a}</li>
+                        <span
+                          key={j}
+                          className="text-xs bg-secondary/30 text-foreground rounded-full px-3 py-1"
+                        >
+                          {a}
+                        </span>
                       ))}
-                    </ul>
+                    </div>
                   )}
                   {opt.pro_tip && (
-                    <p className="savings-tip">💡 {opt.pro_tip}</p>
+                    <p className="text-xs text-muted-foreground bg-accent/5 rounded-lg p-3 border border-accent/10">
+                      💡 {opt.pro_tip}
+                    </p>
                   )}
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-muted-foreground text-sm">
+            <p className="text-muted-foreground text-sm bg-secondary/30 rounded-xl p-4">
               No accommodation found within your budget.
             </p>
           )}
@@ -780,84 +863,128 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
 
       {/* Itinerary */}
       {itinerary.length > 0 && (
-        <div className="panel p-6">
-          <h3>Day-by-Day Itinerary</h3>
-          <div className="days">
+        <div className="space-y-6">
+          <h3 className="text-xl font-bold text-foreground">
+            Day-by-Day Itinerary
+          </h3>
+          <div className="space-y-5">
             {itinerary.map((day: any) => (
-              <article className="day" key={day.day}>
-                <h4>
-                  Day {day.day}: {day.theme}
-                </h4>
-
-                <div className="day-section">
-                  <p className="section-label">🌅 Morning</p>
-                  <p>
-                    {day.morning?.activity}{" "}
-                    <span className="cost-inline">
-                      {money(day.morning?.cost, plan)}
-                    </span>
-                  </p>
-                  <p className="meal-row">
-                    🍳 Breakfast · {day.breakfast?.place_type}{" "}
-                    <span className="cost-inline">
-                      {money(day.breakfast?.cost, plan)}
-                    </span>
-                  </p>
+              <div
+                key={day.day}
+                className="bg-card rounded-2xl border border-border overflow-hidden"
+              >
+                <div className="bg-gradient-to-r from-primary/10 to-accent/10 px-6 py-4 border-b border-border">
+                  <h4 className="font-bold text-foreground text-lg">
+                    Day {day.day}: {day.theme}
+                  </h4>
                 </div>
 
-                <div className="day-section">
-                  <p className="section-label">☀️ Afternoon</p>
-                  <p>
-                    {day.afternoon?.activity}{" "}
-                    <span className="cost-inline">
-                      {money(day.afternoon?.cost, plan)}
-                    </span>
-                  </p>
-                  <p className="meal-row">
-                    🍽️ Lunch · {day.lunch?.place_type}{" "}
-                    <span className="cost-inline">
-                      {money(day.lunch?.cost, plan)}
-                    </span>
-                  </p>
-                </div>
+                <div className="p-6 space-y-5">
+                  <div>
+                    <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-3">
+                      🌅 Morning
+                    </p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-foreground">
+                          {day.morning?.activity}
+                        </span>
+                        <span className="font-semibold text-primary">
+                          {money(day.morning?.cost, plan)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>🍳 Breakfast · {day.breakfast?.place_type}</span>
+                        <span className="text-foreground font-medium">
+                          {money(day.breakfast?.cost, plan)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
 
-                <div className="day-section">
-                  <p className="section-label">🌙 Evening</p>
-                  <p>
-                    {day.evening?.activity}{" "}
-                    <span className="cost-inline">
-                      {money(day.evening?.cost, plan)}
-                    </span>
-                  </p>
-                  <p className="meal-row">
-                    🍴 Dinner · {day.dinner?.place_type}{" "}
-                    <span className="cost-inline">
-                      {money(day.dinner?.cost, plan)}
-                    </span>
-                  </p>
-                </div>
+                  <div className="border-t border-border pt-5">
+                    <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-3">
+                      ☀️ Afternoon
+                    </p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-foreground">
+                          {day.afternoon?.activity}
+                        </span>
+                        <span className="font-semibold text-primary">
+                          {money(day.afternoon?.cost, plan)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>🍽️ Lunch · {day.lunch?.place_type}</span>
+                        <span className="text-foreground font-medium">
+                          {money(day.lunch?.cost, plan)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
 
-                <div className="day-footer">
-                  <span>
-                    Local transport: {money(day.local_transport, plan)}
-                  </span>
-                  <strong>Day total: {money(day.day_total, plan)}</strong>
+                  <div className="border-t border-border pt-5">
+                    <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-3">
+                      🌙 Evening
+                    </p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-foreground">
+                          {day.evening?.activity}
+                        </span>
+                        <span className="font-semibold text-primary">
+                          {money(day.evening?.cost, plan)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>🍴 Dinner · {day.dinner?.place_type}</span>
+                        <span className="text-foreground font-medium">
+                          {money(day.dinner?.cost, plan)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-border pt-5 flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      Local transport: {money(day.local_transport, plan)}
+                    </span>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Day Total
+                      </p>
+                      <p className="text-lg font-bold text-primary">
+                        {money(day.day_total, plan)}
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 {day.budget_tip && (
-                  <p className="savings-tip">💡 {day.budget_tip}</p>
+                  <div className="px-6 py-4 bg-accent/5 border-t border-border text-xs text-muted-foreground">
+                    💡 {day.budget_tip}
+                  </div>
                 )}
-              </article>
+              </div>
             ))}
           </div>
 
           {plan.itinerary?.money_saving_hacks?.length > 0 && (
-            <div className="tips-box" style={{ marginTop: 20 }}>
-              <p className="section-label">💰 Money-Saving Hacks</p>
-              <ul className="tip-list">
+            <div className="bg-accent/5 border border-accent/10 rounded-xl p-6">
+              <p className="font-bold text-foreground mb-3">
+                💰 Money-Saving Hacks
+              </p>
+              <ul className="space-y-2">
                 {(plan.itinerary?.money_saving_hacks as string[]).map(
                   (h, i) => (
-                    <li key={i}>{h}</li>
+                    <li
+                      key={i}
+                      className="text-sm text-muted-foreground flex gap-2"
+                    >
+                      <span className="text-accent">•</span>
+                      {h}
+                    </li>
                   ),
                 )}
               </ul>
@@ -865,12 +992,20 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
           )}
 
           {plan.itinerary?.free_time_suggestions?.length > 0 && (
-            <div className="tips-box" style={{ marginTop: 12 }}>
-              <p className="section-label">🎯 Free Time Ideas</p>
-              <ul className="tip-list">
+            <div className="bg-accent/5 border border-accent/10 rounded-xl p-6">
+              <p className="font-bold text-foreground mb-3">
+                🎯 Free Time Ideas
+              </p>
+              <ul className="space-y-2">
                 {(plan.itinerary?.free_time_suggestions as string[]).map(
                   (s, i) => (
-                    <li key={i}>{s}</li>
+                    <li
+                      key={i}
+                      className="text-sm text-muted-foreground flex gap-2"
+                    >
+                      <span className="text-accent">•</span>
+                      {s}
+                    </li>
                   ),
                 )}
               </ul>
@@ -882,11 +1017,15 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
+    <div className="flex flex-col gap-2">
+      <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+        {label}
+      </span>
+      <strong className="text-2xl text-foreground leading-tight">
+        {value}
+      </strong>
     </div>
   );
 }

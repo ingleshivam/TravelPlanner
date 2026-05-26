@@ -1,6 +1,9 @@
 import json
+import re
+import time
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_groq import ChatGroq
+from groq import RateLimitError
 import os
 from dotenv import load_dotenv
 
@@ -30,6 +33,20 @@ llm = ChatGroq(
     temperature=0,
     api_key=os.getenv("GROQ_API_KEY"),
 )
+
+
+def invoke_with_retry(chain, input_data: dict, max_retries: int = 6):
+    """Invoke a LangChain chain, retrying automatically on Groq 429 rate-limit errors."""
+    for attempt in range(max_retries):
+        try:
+            return chain.invoke(input_data)
+        except RateLimitError as exc:
+            if attempt == max_retries - 1:
+                raise
+            m = re.search(r"try again in (\d+\.?\d*)s", str(exc))
+            wait = float(m.group(1)) + 2.0 if m else min(4 * (2 ** attempt), 60)
+            print(f"[rate-limit] waiting {wait:.1f}s before retry {attempt + 1}/{max_retries - 1} …")
+            time.sleep(wait)
 
 
 def _plain_chain(system_prompt: str):

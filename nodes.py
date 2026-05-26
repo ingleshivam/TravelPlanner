@@ -5,9 +5,13 @@ from pydantic import AliasChoices, BaseModel, Field
 from agents import (
     _structured_chain, researcher_chain, transport_chain,
     accommodation_chain, itinerary_chain, budget_chain,
+    invoke_with_retry,
 )
 from utils import infer_currency, parse_transport_options
-from search import search_destination_info, search_transport_prices, search_accommodation_prices
+from search import (
+    search_destination_info, search_transport_prices, search_train_prices,
+    search_bus_prices, search_accommodation_info, search_activities_food,
+)
 
 DEFAULT_BUDGET_ALLOCATION = {
     "transport": 40,
@@ -58,7 +62,7 @@ def currency_inference_node(state: TravelPlanState) -> dict:
             ),
             schema=CurrencyStructure,
         )
-        result: CurrencyStructure = chain.invoke({"input": f"City or country: {location}"})
+        result: CurrencyStructure = invoke_with_retry(chain, {"input": f"City or country: {location}"})
         print("Currency Result : ", result)
         return {"currency": result.code, "currency_symbol": result.symbol}
     except Exception as e:
@@ -75,7 +79,7 @@ def destination_researcher_node(state: TravelPlanState) -> dict:
     dest_hint = state.get("destination") or "Asia budget destinations"
     live_data = search_destination_info(dest_hint, state["origin"], state["num_days"])
 
-    result: DestinationResearchOutput = researcher_chain.invoke({"input": json.dumps({
+    result: DestinationResearchOutput = invoke_with_retry(researcher_chain, {"input": json.dumps({
         "total_budget": state["user_budget"],
         "num_days": state["num_days"],
         "origin": state["origin"],
@@ -89,14 +93,17 @@ def destination_researcher_node(state: TravelPlanState) -> dict:
     return {
         "destination_research": result.model_dump(),
         "destination": result.recommended or state.get("destination"),
+        "raw_search_destination": live_data,
     }
 
 
 _ZERO_TRANSPORT_PLAN = {
     "intercity": {
-        "mode": "Not budgeted", "estimated_cost_per_person": 0,
-        "total_cost": 0, "booking_tips": "No transport budget allocated.",
-        "budget_airlines_or_options": [],
+        "all_options": [],
+        "recommended_mode": "Not budgeted",
+        "estimated_cost_per_person": 0,
+        "total_cost": 0,
+        "booking_tips": "No transport budget allocated.",
     },
     "local_transport": {"daily_cost_per_person": 0, "total_local_transport": 0, "recommended_options": []},
     "airport_transfer": {"cost": 0, "recommended_mode": "N/A"},
@@ -111,13 +118,18 @@ def transport_agent_node(state: TravelPlanState) -> dict:
     if _allocation_amount(state, "transport") == 0:
         return {"transport_plan": _ZERO_TRANSPORT_PLAN}
 
-    transport_data = search_transport_prices(
-        state["origin"], state["destination"], state["start_date"]
-    )
-    live_data = transport_data["text"]
-    llm_flights = transport_data.get("flights", [])
+    _MAX = 1200  
+    flight_data = search_transport_prices(state["origin"], state["destination"], state["start_date"])
+    train_data  = search_train_prices(state["origin"], state["destination"], state["start_date"])
+    bus_data    = search_bus_prices(state["origin"], state["destination"], state["start_date"])
 
-    print("Live Data : ", live_data)
+    live_data = "\n\n".join(filter(None, [
+        f"=== FLIGHTS ===\n{flight_data[:_MAX]}" if flight_data else "",
+        f"=== TRAINS ===\n{train_data[:_MAX]}"   if train_data  else "",
+        f"=== BUSES ===\n{bus_data[:_MAX]}"       if bus_data    else "",
+    ]))
+
+    print("\n\nLive Data : ", live_data)
 
     input_data = {
         "origin": state["origin"],
@@ -130,19 +142,16 @@ def transport_agent_node(state: TravelPlanState) -> dict:
         "currency_symbol": state["currency_symbol"],
         "real_time_search_data": live_data,
     }
-    print("INPUT DATA : ", input_data)
-    result: TransportPlanOutput = transport_chain.invoke({"input": json.dumps(input_data)})
+    print("\n\nINPUT DATA : ", input_data)
+    result: TransportPlanOutput = invoke_with_retry(transport_chain, {"input": json.dumps(input_data)})
     print("TRANSPORT AGENT DATA : ", result)
     plan = result.model_dump()
-    available = parse_transport_options(live_data)
-    if llm_flights:
-        available["flights"] = llm_flights
-    plan["available_options"] = available
-    return {"transport_plan": plan}
+    plan["available_options"] = parse_transport_options(live_data)
+    return {"transport_plan": plan, "raw_search_transport": live_data}
 
 
 def accommodation_agent_node(state: TravelPlanState) -> dict:
-    live_data = search_accommodation_prices(
+    live_data = search_accommodation_info(
         state["destination"], state["start_date"], state["end_date"], state["num_travelers"],
     )
 
@@ -158,17 +167,20 @@ def accommodation_agent_node(state: TravelPlanState) -> dict:
         "real_time_search_data": live_data,
     }
 
-
-    result: AccommodationPlanOutput = accommodation_chain.invoke({"input": json.dumps(input_data)})
+    result: AccommodationPlanOutput = invoke_with_retry(accommodation_chain, {"input": json.dumps(input_data)})
+    # result : TravelPlanState = invoke_with_retru(accomodation_chaini, {input : JSON.dumpa(state["currency_symbol"])})
     print("Accommodation chain result:", result)
-    return {"accommodation_plan": result.model_dump()}
+    return {"accommodation_plan": result.model_dump(), "raw_search_accommodation": live_data}
 
 
 def itinerary_agent_node(state: TravelPlanState) -> dict:
     food_and_activities_budget = (
         _allocation_amount(state, "food") + _allocation_amount(state, "activities")
     )
-    result: ItineraryOutput = itinerary_chain.invoke({"input": json.dumps({
+    interests_str = ", ".join(state["interests"]) if state["interests"] else "general sightseeing"
+    live_data = search_activities_food(state["destination"], state["travel_style"], interests_str)
+
+    result: ItineraryOutput = invoke_with_retry(itinerary_chain, {"input": json.dumps({
         "destination": state["destination"],
         "num_days": state["num_days"],
         "remaining_budget_for_food_and_activities": food_and_activities_budget,
@@ -177,8 +189,9 @@ def itinerary_agent_node(state: TravelPlanState) -> dict:
         "num_travelers": state["num_travelers"],
         "currency": state["currency"],
         "currency_symbol": state["currency_symbol"],
+        "real_time_search_data": live_data,
     })})
-    return {"itinerary": result.model_dump()}
+    return {"itinerary": result.model_dump(), "raw_search_itinerary": live_data}
 
 
 def budget_tracker_node(state: TravelPlanState) -> dict:
@@ -190,7 +203,7 @@ def budget_tracker_node(state: TravelPlanState) -> dict:
     food_activity_total = food_ratio + activities_ratio
     food_share = food_ratio / food_activity_total if food_activity_total else 0.6
 
-    result: BudgetTrackerOutput = budget_chain.invoke({"input": json.dumps({
+    result: BudgetTrackerOutput = invoke_with_retry(budget_chain, {"input": json.dumps({
         "total_budget": state["user_budget"],
         "num_travelers": state["num_travelers"],
         "currency": state["currency"],

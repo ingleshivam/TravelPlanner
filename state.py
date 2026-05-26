@@ -22,6 +22,12 @@ class TravelPlanState(TypedDict):
     itinerary: Optional[dict]
     budget_summary: Optional[dict]
 
+    # ── Raw Tavily search results (per agent) ────────────
+    raw_search_destination: Optional[str]
+    raw_search_transport: Optional[str]
+    raw_search_accommodation: Optional[str]
+    raw_search_itinerary: Optional[str]
+
     # ── Control flow ─────────────────────────────────────
     budget_overrun: bool
     overrun_amount: float

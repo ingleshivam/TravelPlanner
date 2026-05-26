@@ -63,6 +63,10 @@ class TravelPlanResponse(BaseModel):
     itinerary: Optional[Dict] = None
     budget_summary: Optional[Dict] = None
     final_plan_ready: bool
+    raw_search_destination: Optional[str] = None
+    raw_search_transport: Optional[str] = None
+    raw_search_accommodation: Optional[str] = None
+    raw_search_itinerary: Optional[str] = None
 
 
 app = FastAPI(
@@ -108,6 +112,10 @@ async def create_travel_plan(request: TravelPlanRequest) -> Dict:
         "accommodation_plan": None,
         "itinerary": None,
         "budget_summary": None,
+        "raw_search_destination": None,
+        "raw_search_transport": None,
+        "raw_search_accommodation": None,
+        "raw_search_itinerary": None,
         "budget_overrun": False,
         "overrun_amount": 0.0,
         "budget_constraint_message": None,
@@ -143,4 +151,8 @@ async def create_travel_plan(request: TravelPlanRequest) -> Dict:
         "itinerary": result.get("itinerary"),
         "budget_summary": result.get("budget_summary"),
         "final_plan_ready": result.get("final_plan_ready", False),
+        "raw_search_destination": result.get("raw_search_destination"),
+        "raw_search_transport": result.get("raw_search_transport"),
+        "raw_search_accommodation": result.get("raw_search_accommodation"),
+        "raw_search_itinerary": result.get("raw_search_itinerary"),
     }
