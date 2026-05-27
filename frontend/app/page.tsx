@@ -785,73 +785,87 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
         <div className="space-y-4">
           <h3 className="text-xl font-bold text-foreground">Where to Stay</h3>
           {accommodation.options?.length > 0 ? (
-            <div className="grid gap-4">
-              {accommodation.options.map((opt: any, i: number) => (
-                <div
-                  className={`bg-card rounded-2xl border-2 p-6 transition ${
-                    opt.tier === accommodation.recommended_tier
-                      ? "border-primary/30 bg-primary/5"
-                      : "border-border"
-                  }`}
-                  key={i}
-                >
-                  <div className="flex items-start justify-between gap-4 mb-3">
-                    <div>
-                      <h4 className="font-bold text-foreground">{opt.type}</h4>
-                      <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wide">
-                        {opt.tier}
+            <div className="rounded-2xl border-2 border-border bg-card overflow-hidden">
+              <div className="flex items-center gap-3 px-6 py-4 bg-secondary/30">
+                <span className="text-2xl">🏨</span>
+                <span className="text-lg font-bold text-foreground">Accommodation</span>
+                {accommodation.recommended_tier && (
+                  <span className="px-3 py-1 bg-green-100/50 text-green-700 text-xs font-bold rounded-full">
+                    ✓ {accommodation.recommended_tier} recommended
+                  </span>
+                )}
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {accommodation.options.length} option{accommodation.options.length > 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-3 p-4">
+                {accommodation.options.map((opt: any, i: number) => (
+                  <div
+                    key={i}
+                    className={`flex flex-col gap-2 rounded-xl p-4 border ${
+                      opt.tier === accommodation.recommended_tier
+                        ? "bg-primary/5 border-primary/30"
+                        : "bg-background border-border"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-semibold text-foreground text-sm leading-snug">
+                        {opt.type}
                       </p>
+                      {opt.tier === accommodation.recommended_tier && (
+                        <span className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-green-100/50 text-green-700">
+                          ✓
+                        </span>
+                      )}
                     </div>
-                    {opt.tier === accommodation.recommended_tier && (
-                      <span className="text-xs font-bold px-3 py-1 rounded-full bg-green-100/50 text-green-700">
-                        Recommended
-                      </span>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                      {opt.tier}
+                    </p>
+                    {opt.location_notes && (
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        {opt.location_notes}
+                      </p>
+                    )}
+                    {opt.amenities?.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {opt.amenities.slice(0, 3).map((a: string, j: number) => (
+                          <span
+                            key={j}
+                            className="text-xs bg-secondary/30 text-foreground rounded-full px-2 py-0.5"
+                          >
+                            {a}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="mt-auto pt-2 border-t border-border">
+                      {opt.estimated_price_per_night > 0 && (
+                        <>
+                          <p className="text-xl font-bold text-primary leading-tight">
+                            {money(opt.estimated_price_per_night, plan)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">per night</p>
+                        </>
+                      )}
+                      {opt.total_cost > 0 && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Total: <strong className="text-foreground">{money(opt.total_cost, plan)}</strong>
+                        </p>
+                      )}
+                      {opt.booking_platform && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          via <strong className="text-foreground">{opt.booking_platform}</strong>
+                        </p>
+                      )}
+                    </div>
+                    {opt.pro_tip && (
+                      <p className="text-xs text-muted-foreground bg-secondary rounded-lg px-2 py-1.5 leading-relaxed">
+                        💡 {opt.pro_tip}
+                      </p>
                     )}
                   </div>
-                  <div className="grid grid-cols-3 gap-4 mb-4 py-4 border-y border-border">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Per night</p>
-                      <p className="font-bold text-foreground mt-1">
-                        {money(opt.estimated_price_per_night, plan)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        Total stay
-                      </p>
-                      <p className="font-bold text-foreground mt-1">
-                        {money(opt.total_cost, plan)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Book via</p>
-                      <p className="font-bold text-foreground mt-1 text-sm">
-                        {opt.booking_platform}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    {opt.location_notes}
-                  </p>
-                  {opt.amenities?.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {opt.amenities.map((a: string, j: number) => (
-                        <span
-                          key={j}
-                          className="text-xs bg-secondary/30 text-foreground rounded-full px-3 py-1"
-                        >
-                          {a}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {opt.pro_tip && (
-                    <p className="text-xs text-muted-foreground bg-accent/5 rounded-lg p-3 border border-accent/10">
-                      💡 {opt.pro_tip}
-                    </p>
-                  )}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           ) : (
             <p className="text-muted-foreground text-sm bg-secondary/30 rounded-xl p-4">

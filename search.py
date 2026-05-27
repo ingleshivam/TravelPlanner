@@ -36,6 +36,7 @@ def _get_fc() -> FirecrawlApp:
 def web_search(query: str, max_results: int = 15) -> str:
     try:
         response = _get_tavily().search(query=query, max_results=max_results, search_depth="advanced")
+        print("web search api result :",response)
         results = response.get("results", [])
         if not results:
             return "No results found."
@@ -135,7 +136,9 @@ def search_transport_prices(origin: str, destination: str, start_date: str) -> s
 
 def search_train_prices(origin: str, destination: str, start_date: str) -> str:
 
+    print("Start Date : ", start_date)
     query = f"Latest trains from {origin} to {destination} on {start_date}"
+    # query="Find trains from {origin} to {destination} on date {start_date}.\nReturn the JSON only.\nThe JSON should only contains train_number,train_name, train_fare, train_class, train_duration, train_departure_time_from_origin.\n{\ntrain_number:\"\"\ntrain_name: \"\",\ntrain_fare=\"\",\ntrain_class=\"\",\ntrain_duration=\"\",\ntrain_departure_time_from_origin=\"\"\n}",
 
     content = web_search(query=query)
 
@@ -154,7 +157,6 @@ def search_train_prices(origin: str, destination: str, start_date: str) -> str:
         Do NOT "think" beyond the supplied dataset.
         If information is missing, simply omit it instead of guessing.
         Preserve factual accuracy from the source data.
-        Re-structure and summarize the data cleanly without changing meaning.
         Avoid duplicate statements and noisy scraped text.
 
         The output should include only:
@@ -163,11 +165,9 @@ def search_train_prices(origin: str, destination: str, start_date: str) -> str:
         Approximate distance
         Journey duration
         Train names/numbers mentioned
-        Class options and fare ranges mentioned
-        Cheapest date/timing information if available
-        Schedule/timing information if available
-        Direct vs connecting train details if available
-        Booking/timing notes only if explicitly mentioned
+        Class options and fares mentioned
+        date/timing information if available
+        Schedule/timing information if available        
 
         Formatting Requirements:
 
@@ -184,6 +184,7 @@ def search_train_prices(origin: str, destination: str, start_date: str) -> str:
 
     chain  = _plain_chain(system_prompt=TRAIN_INFORMATION_SYSTEM_PROMPT)
     result = invoke_with_retry(chain, {"input": content})
+    print("Train Result : ", result)
     print("\n\nTrain Information from Web Search : ", result)
 
     return result.content

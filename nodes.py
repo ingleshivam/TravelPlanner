@@ -119,6 +119,7 @@ def transport_agent_node(state: TravelPlanState) -> dict:
         return {"transport_plan": _ZERO_TRANSPORT_PLAN}
 
     _MAX = 1200  
+    print("Start Date in transport_agent_node : ", state["start_date"])
     flight_data = search_transport_prices(state["origin"], state["destination"], state["start_date"])
     train_data  = search_train_prices(state["origin"], state["destination"], state["start_date"])
     bus_data    = search_bus_prices(state["origin"], state["destination"], state["start_date"])
@@ -172,6 +173,11 @@ def accommodation_agent_node(state: TravelPlanState) -> dict:
     print("Accommodation chain result:", result)
     return {"accommodation_plan": result.model_dump(), "raw_search_accommodation": live_data}
 
+def accomodation_agent_oracrastrator(state : TravelPlanState) -> dict:
+    class AccomodationResult(BaseModel):
+        hotel_name: str =Field(description="This field should contain hotel name. Stricly contain the key name as hotel_name")
+        hotel_price: str = Field(description="This field should contain hotel price. Stricly contain the key name as hotel_price")
+        hotel_location : str = Field(description="This field should contain hotel_location. Stricly contain the key name as hotel_location")
 
 def itinerary_agent_node(state: TravelPlanState) -> dict:
     food_and_activities_budget = (
