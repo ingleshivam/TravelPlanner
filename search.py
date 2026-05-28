@@ -33,14 +33,13 @@ def _get_fc() -> FirecrawlApp:
     return _fc_client
 
 
-def web_search(query: str, max_results: int = 15) -> str:
+def web_search(query: str, domains:list, max_results: int = 1) -> str:
     try:
-        response = _get_tavily().search(query=query, max_results=max_results, search_depth="advanced")
-        print("web search api result :",response)
+        response = _get_tavily().search(query=query, max_results=max_results, search_depth="advanced", include_domains=["goibibo.com"], exclude_domains=domains)
         results = response.get("results", [])
         if not results:
             return "No results found."
-        return "\n".join(f"- {r['title']}: {r['content'][:250]}" for r in results)
+        return "\n".join(f"- {r['title']}: {r['content']}" for r in results)
     except Exception as e:
         return f"(Search unavailable: {e})"
 
@@ -80,7 +79,7 @@ def search_transport_prices(origin: str, destination: str, start_date: str) -> s
     
     query = f"Latest flights from {origin} to {destination} on {start_date}"
     
-    content  = web_search(query=query)
+    content  = web_search(query=query,domains=[])
         
     FLIGHT_INFORMATION_SYSTEM_PROMPT = """
         Using only the provided flight search results and scraped travel data, generate a structured and professional flight information summary for the requested route.
@@ -136,11 +135,9 @@ def search_transport_prices(origin: str, destination: str, start_date: str) -> s
 
 def search_train_prices(origin: str, destination: str, start_date: str) -> str:
 
-    print("Start Date : ", start_date)
     query = f"Latest trains from {origin} to {destination} on {start_date}"
-    # query="Find trains from {origin} to {destination} on date {start_date}.\nReturn the JSON only.\nThe JSON should only contains train_number,train_name, train_fare, train_class, train_duration, train_departure_time_from_origin.\n{\ntrain_number:\"\"\ntrain_name: \"\",\ntrain_fare=\"\",\ntrain_class=\"\",\ntrain_duration=\"\",\ntrain_departure_time_from_origin=\"\"\n}",
 
-    content = web_search(query=query)
+    content = web_search(query=query,domains=["erail.in","rome2rio.com","easemytrip.com"])
 
     TRAIN_INFORMATION_SYSTEM_PROMPT = """
         Using only the provided train search results and scraped travel data, generate a structured and professional train information summary for the requested route.
@@ -194,7 +191,7 @@ def search_bus_prices(origin: str, destination: str, start_date: str) -> str:
 
     query = f"Latest buses from {origin} to {destination} on {start_date}"
 
-    content = web_search(query=query)
+    content = web_search(query=query,domains=[])
 
     BUS_INFORMATION_SYSTEM_PROMPT = """
         Using only the provided bus search results and scraped travel data, generate a structured and professional bus information summary for the requested route.
@@ -252,7 +249,7 @@ def search_accommodation_info(destination: str, checkin: str, checkout: str, tra
     ]
     parts = []
     for q in queries:
-        parts.append(web_search(q, max_results=5))
+        parts.append(web_search(q,domains=[]))
     return "\n".join(parts)
 
 
@@ -263,7 +260,7 @@ def search_activities_food(destination: str, travel_style: str, interests: str) 
     ]
     parts = []
     for q in queries:
-        parts.append(web_search(q, max_results=5))
+        parts.append(web_search(q,domains=[]))
     return "\n".join(parts)
 
 
@@ -274,5 +271,5 @@ def search_destination_info(destination: str, origin: str, num_days: int) -> str
     ]
     parts = []
     for q in queries:
-        parts.append(web_search(q, max_results=2))
+        parts.append(web_search(q,domains=[]))
     return "\n".join(parts)

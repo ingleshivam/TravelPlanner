@@ -50,8 +50,8 @@ export default function Home() {
   const [budget, setBudget] = useState(15000);
   const [origin, setOrigin] = useState("Pune");
   const [destination, setDestination] = useState("Mumbai");
-  const [startDate, setStartDate] = useState("2026-05-27");
-  const [endDate, setEndDate] = useState("2026-05-28");
+  const [startDate, setStartDate] = useState("2026-05-29");
+  const [endDate, setEndDate] = useState("2026-05-30");
   const [days, setDays] = useState(1);
   const [travelers, setTravelers] = useState(1);
   const [style, setStyle] = useState<TravelStyle>("budget-backpacker");
@@ -639,12 +639,17 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
                                 <p className="text-xl font-bold text-primary leading-tight">
                                   {money(opt.estimated_cost_per_person, plan)}
                                 </p>
-                                <p className="text-xs text-muted-foreground">per person</p>
+                                <p className="text-xs text-muted-foreground">
+                                  per person
+                                </p>
                               </>
                             )}
                             {opt.total_cost > 0 && (
                               <p className="text-xs text-muted-foreground mt-0.5">
-                                Total: <strong className="text-foreground">{money(opt.total_cost, plan)}</strong>
+                                Total:{" "}
+                                <strong className="text-foreground">
+                                  {money(opt.total_cost, plan)}
+                                </strong>
                               </p>
                             )}
                           </div>
@@ -707,12 +712,15 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
                             </p>
                             <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
                               {b.bus_type && <span>{b.bus_type}</span>}
-                              {b.seats_available > 0 && <span>{b.seats_available} seats</span>}
+                              {b.seats_available > 0 && (
+                                <span>{b.seats_available} seats</span>
+                              )}
                               {b.rating && <span>⭐ {b.rating}</span>}
                             </div>
                             {b.price > 0 && (
                               <p className="text-xl font-bold text-primary mt-auto pt-2 border-t border-border">
-                                {plan.currency_symbol}{Number(b.price).toLocaleString()}
+                                {plan.currency_symbol}
+                                {Number(b.price).toLocaleString()}
                               </p>
                             )}
                           </div>
@@ -737,11 +745,14 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
                             </p>
                             <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
                               {f.seat_class && <span>{f.seat_class}</span>}
-                              {f.seats_available > 0 && <span>{f.seats_available} seats</span>}
+                              {f.seats_available > 0 && (
+                                <span>{f.seats_available} seats</span>
+                              )}
                             </div>
                             {f.price > 0 && (
                               <p className="text-xl font-bold text-primary mt-auto pt-2 border-t border-border">
-                                {plan.currency_symbol}{Number(f.price).toLocaleString()}
+                                {plan.currency_symbol}
+                                {Number(f.price).toLocaleString()}
                               </p>
                             )}
                           </div>
@@ -788,14 +799,17 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
             <div className="rounded-2xl border-2 border-border bg-card overflow-hidden">
               <div className="flex items-center gap-3 px-6 py-4 bg-secondary/30">
                 <span className="text-2xl">🏨</span>
-                <span className="text-lg font-bold text-foreground">Accommodation</span>
+                <span className="text-lg font-bold text-foreground">
+                  Accommodation
+                </span>
                 {accommodation.recommended_tier && (
                   <span className="px-3 py-1 bg-green-100/50 text-green-700 text-xs font-bold rounded-full">
                     ✓ {accommodation.recommended_tier} recommended
                   </span>
                 )}
                 <span className="ml-auto text-xs text-muted-foreground">
-                  {accommodation.options.length} option{accommodation.options.length > 1 ? "s" : ""}
+                  {accommodation.options.length} option
+                  {accommodation.options.length > 1 ? "s" : ""}
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-3 p-4">
@@ -828,14 +842,16 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
                     )}
                     {opt.amenities?.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {opt.amenities.slice(0, 3).map((a: string, j: number) => (
-                          <span
-                            key={j}
-                            className="text-xs bg-secondary/30 text-foreground rounded-full px-2 py-0.5"
-                          >
-                            {a}
-                          </span>
-                        ))}
+                        {opt.amenities
+                          .slice(0, 3)
+                          .map((a: string, j: number) => (
+                            <span
+                              key={j}
+                              className="text-xs bg-secondary/30 text-foreground rounded-full px-2 py-0.5"
+                            >
+                              {a}
+                            </span>
+                          ))}
                       </div>
                     )}
                     <div className="mt-auto pt-2 border-t border-border">
@@ -844,17 +860,25 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
                           <p className="text-xl font-bold text-primary leading-tight">
                             {money(opt.estimated_price_per_night, plan)}
                           </p>
-                          <p className="text-xs text-muted-foreground">per night</p>
+                          <p className="text-xs text-muted-foreground">
+                            per night
+                          </p>
                         </>
                       )}
                       {opt.total_cost > 0 && (
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Total: <strong className="text-foreground">{money(opt.total_cost, plan)}</strong>
+                          Total:{" "}
+                          <strong className="text-foreground">
+                            {money(opt.total_cost, plan)}
+                          </strong>
                         </p>
                       )}
                       {opt.booking_platform && (
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          via <strong className="text-foreground">{opt.booking_platform}</strong>
+                          via{" "}
+                          <strong className="text-foreground">
+                            {opt.booking_platform}
+                          </strong>
                         </p>
                       )}
                     </div>
