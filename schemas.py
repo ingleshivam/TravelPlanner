@@ -50,7 +50,7 @@ class LocalTransport(BaseModel):
 
 class AirportTransfer(BaseModel):
     cost: FloatOrZero = 0.0
-    recommended_mode: str = "N/A"
+    recommended_mode: StrOrEmpty = ""
 
 class TransportPlanOutput(BaseModel):
     intercity: IntercityTransport

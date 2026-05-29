@@ -244,7 +244,7 @@ Do NOT invent prices — only use values from `real_time_search_data`.
 
 ## Rules
 - `intercity.all_options` must list every flight, train, and bus option found in the data.
-- `intercity.recommended_mode` must be the most affordable mode within budget.
+- `intercity.recommended_mode` MUST be set to the value of `cheapest_mode` provided in the input. Do NOT override this with your own judgment.
 - `intercity.total_cost` (the recommended option's cost) is used for budget calculations — set it correctly.
 - If all options exceed the allocated budget, flag it in `within_budget`.
 - Include one "hidden savings tip" drawn from the real-time data.

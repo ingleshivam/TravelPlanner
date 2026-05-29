@@ -7,7 +7,7 @@ from agents import (
     accommodation_chain, itinerary_chain, budget_chain,
     invoke_with_retry,
 )
-from utils import infer_currency, parse_transport_options
+from utils import infer_currency
 from search import (
     search_destination_info, search_transport_prices, search_train_prices,
     search_bus_prices, search_accommodation_info, search_activities_food,
@@ -118,18 +118,38 @@ def transport_agent_node(state: TravelPlanState) -> dict:
     if _allocation_amount(state, "transport") == 0:
         return {"transport_plan": _ZERO_TRANSPORT_PLAN}
 
-    _MAX = 1200  
+    _MAX = 1200
     print("Start Date in transport_agent_node : ", state["start_date"])
-    flight_data = search_transport_prices(state["origin"], state["destination"], state["start_date"])
-    train_data  = search_train_prices(state["origin"], state["destination"], state["start_date"])
-    bus_data    = search_bus_prices(state["origin"], state["destination"], state["start_date"])
+    flight_result = search_transport_prices(state["origin"], state["destination"], state["start_date"])
+    train_result  = search_train_prices(state["origin"], state["destination"], state["start_date"])
+    bus_result    = search_bus_prices(state["origin"], state["destination"], state["start_date"])
 
-    live_data = "\n\n".join(filter(None, [
-        f"=== FLIGHTS ===\n{flight_data[:_MAX]}" if flight_data else "",
-        f"=== TRAINS ===\n{train_data[:_MAX]}"   if train_data  else "",
-        f"=== BUSES ===\n{bus_data[:_MAX]}"       if bus_data    else "",
-    ]))
+    available_options = {
+        "flights": flight_result.get("flights", []),
+        "trains":  train_result.get("trains", []),
+        "buses":   bus_result.get("buses", []),
+    }
 
+    # Compute cheapest mode in Python so the LLM cannot get it wrong
+    mode_min_fares = {}
+    for f in available_options["flights"]:
+        fare = f.get("flight_fare") or 0
+        if fare > 0:
+            mode_min_fares["flight"] = min(mode_min_fares.get("flight", fare), fare)
+    for t in available_options["trains"]:
+        fare = t.get("train_fare") or 0
+        if fare > 0:
+            mode_min_fares["train"] = min(mode_min_fares.get("train", fare), fare)
+    for b in available_options["buses"]:
+        fare = b.get("bus_fare") or 0
+        if fare > 0:
+            mode_min_fares["bus"] = min(mode_min_fares.get("bus", fare), fare)
+    cheapest_mode = min(mode_min_fares, key=mode_min_fares.get) if mode_min_fares else None
+    print(f"\n\nMode min fares: {mode_min_fares} → cheapest: {cheapest_mode}")
+
+    # Put trains and buses first so truncation doesn't hide them
+    ordered = {"trains": available_options["trains"], "buses": available_options["buses"], "flights": available_options["flights"]}
+    live_data = json.dumps(ordered)[:_MAX]
     print("\n\nLive Data : ", live_data)
 
     input_data = {
@@ -141,13 +161,14 @@ def transport_agent_node(state: TravelPlanState) -> dict:
         "travel_style": state["travel_style"],
         "currency": state["currency"],
         "currency_symbol": state["currency_symbol"],
+        "cheapest_mode": cheapest_mode,
         "real_time_search_data": live_data,
     }
     print("\n\nINPUT DATA : ", input_data)
     result: TransportPlanOutput = invoke_with_retry(transport_chain, {"input": json.dumps(input_data)})
     print("TRANSPORT AGENT DATA : ", result)
     plan = result.model_dump()
-    plan["available_options"] = parse_transport_options(live_data)
+    plan["available_options"] = available_options
     return {"transport_plan": plan, "raw_search_transport": live_data}
 
 

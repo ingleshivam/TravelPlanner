@@ -1,3 +1,5 @@
+import hashlib
+import json
 import os
 import re
 from datetime import datetime
@@ -7,10 +9,54 @@ from firecrawl import FirecrawlApp
 from pydantic import AliasChoices, BaseModel, Field
 from tavily import TavilyClient
 
+
+# ── Structured output schemas for transport search ──────────────────────────
+
+class _FlightOption(BaseModel):
+    flight_name: str = ""
+    flight_number: str = ""
+    flight_time: str = ""
+    flight_fare: float = 0.0
+
+class _FlightResult(BaseModel):
+    flights: List[_FlightOption] = []
+
+
+class _TrainOption(BaseModel):
+    train_number: str = ""
+    train_name: str = ""
+    departure_time: str = ""
+    train_fare: float = 0.0
+
+class _TrainResult(BaseModel):
+    trains: List[_TrainOption] = []
+
+
+class _BusOption(BaseModel):
+    bus_name: str = ""
+    bus_number: str = ""
+    bus_fare: float = 0.0
+    bus_time: str = ""
+
+class _BusResult(BaseModel):
+    buses: List[_BusOption] = []
+
 from agents import _plain_chain, _structured_chain, invoke_with_retry
 
 _tavily_client: TavilyClient | None = None
 _fc_client: FirecrawlApp | None = None
+
+_SCRAPE_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scrape_cache.json")
+
+def _cache_load() -> dict:
+    if os.path.exists(_SCRAPE_CACHE_FILE):
+        with open(_SCRAPE_CACHE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+def _cache_save(cache: dict):
+    with open(_SCRAPE_CACHE_FILE, "w", encoding="utf-8") as f:
+        json.dump(cache, f, ensure_ascii=False, indent=2)
 
 
 def _get_tavily() -> TavilyClient:
@@ -33,9 +79,9 @@ def _get_fc() -> FirecrawlApp:
     return _fc_client
 
 
-def web_search(query: str, domains:list, max_results: int = 1) -> str:
+def web_search(query: str, inlcude_domains:list, max_results: int = 1) -> str:
     try:
-        response = _get_tavily().search(query=query, max_results=max_results, search_depth="advanced", include_domains=["goibibo.com"], exclude_domains=domains)
+        response = _get_tavily().search(query=query, max_results=max_results, search_depth="advanced", include_domains=inlcude_domains)
         results = response.get("results", [])
         if not results:
             return "No results found."
@@ -45,11 +91,55 @@ def web_search(query: str, domains:list, max_results: int = 1) -> str:
 
 
 def _scrape(url: str, wait_ms: int = 0) -> str:
+    key = hashlib.md5(url.encode()).hexdigest()
+    cache = _cache_load()
+    if key in cache:
+        print(f"[cache] HIT: {url}")
+        return cache[key]
+    print(f"[scrape] MISS: {url}")
     try:
         result = _get_fc().scrape(url, wait_for=wait_ms or None)
-        return result.markdown
+        content = result.markdown
+        cache[key] = content
+        _cache_save(cache)
+        return content
     except Exception as e:
         return f"(Scrape unavailable: {e})"
+
+
+def _scrape_middle(url: str, wait_ms: int = 0, max_lines: int = 500) -> str:
+    content = _scrape(url, wait_ms)
+    lines = content.splitlines()
+    total = len(lines)
+    skip = int(total * 0.15)
+    middle = lines[skip: total - skip] if total > skip * 2 else lines
+    return "\n".join(middle[:max_lines])
+
+
+def _search_and_scrape(query: str, include_domains: list, url_keywords: list[str] = None) -> str:
+    try:
+        response = _get_tavily().search(
+            query=query,
+            max_results=3,
+            search_depth="advanced",
+            include_domains=include_domains,
+        )
+        results = response.get("results", [])
+        if not results:
+            return "No results found."
+        results.sort(key=lambda r: r.get("score", 0), reverse=True)
+        url = None
+        if url_keywords:
+            for r in results:
+                if all(kw.lower() in r["url"].lower() for kw in url_keywords):
+                    url = r["url"]
+                    break
+        if url is None:
+            url = results[0]["url"]
+        print(f"[scrape] URL: {url}")
+        return _scrape_middle(url)
+    except Exception as e:
+        return f"(Search unavailable: {e})"
 
 
 def _strip_markup_for_accomodation(text: str) -> str:
@@ -75,172 +165,78 @@ def accomodation_url(checkin: str, checkout: str, travelers: str, destination: s
         # f"https://www.ixigo.com/hotels/search/result?locationId=982&locationName=Mumbai&locationType=C&masterLocationId=49654&countryId=1&checkinDate=27052026&checkoutDate=28052026&adultCount=2&roomCount=1&childCount=0&&sort=SC_P_LH"
     )
 
-def search_transport_prices(origin: str, destination: str, start_date: str) -> str:
-    
+_FLIGHT_PROMPT = (
+    "Extract flight options from the provided search data and return them as JSON.\n\n"
+    "Rules:\n"
+    "- Use ONLY information explicitly present in the data. Do NOT invent or assume anything.\n"
+    "- If a field is missing from the data, use an empty string or 0.\n"
+    "- Return an empty flights list if no valid flights are found.\n\n"
+    "Return a JSON object matching this schema exactly:\n"
+    '{{"flights": [{{"flight_name": "airline name", "flight_number": "e.g. 6E-123", '
+    '"flight_time": "HH:MM", "flight_fare": 0}}]}}'
+)
+
+_TRAIN_PROMPT = (
+    "Extract train options from the provided search data and return them as JSON.\n\n"
+    "Rules:\n"
+    "- Use ONLY information explicitly present in the data. Do NOT invent or assume anything.\n"
+    "- Include train number, name, departure time, and fare.\n"
+    "- If a field is missing from the data, use an empty string or 0.\n"
+    "- Return an empty trains list if no valid trains are found.\n\n"
+    "Return a JSON object matching this schema exactly:\n"
+    '{{"trains": [{{"train_number": "e.g. 12124", "train_name": "e.g. Deccan Queen Express", '
+    '"departure_time": "HH:MM", "train_fare": 310}}]}}'
+)
+
+_BUS_PROMPT = (
+    "Extract bus options from the provided search data and return them as JSON.\n\n"
+    "Rules:\n"
+    "- Use ONLY information explicitly present in the data. Do NOT invent or assume anything.\n"
+    "- If a field is missing from the data, use an empty string or 0.\n"
+    "- Return an empty buses list if no valid buses are found.\n\n"
+    "Return a JSON object matching this schema exactly:\n"
+    '{{"buses": [{{"bus_name": "operator name", "bus_number": "route/service number if any", '
+    '"bus_fare": 0, "bus_time": "HH:MM departure time"}}]}}'
+)
+
+
+def search_transport_prices(origin: str, destination: str, start_date: str) -> dict:
     query = f"Latest flights from {origin} to {destination} on {start_date}"
-    
-    content  = web_search(query=query,domains=[])
-        
-    FLIGHT_INFORMATION_SYSTEM_PROMPT = """
-        Using only the provided flight search results and scraped travel data, generate a structured and professional flight information summary for the requested route.
-
-        Strict Instructions / Guardrails:
-
-        Use ONLY the information explicitly present in the provided data.
-        Do NOT add assumptions, external knowledge, predictions, or self-generated details.
-        Do NOT infer missing information.
-        Do NOT include unrelated search results or irrelevant content.
-        Do NOT rewrite information creatively.
-        Do NOT add city descriptions, tourism suggestions, or extra travel advice unless explicitly present in the data.
-        Do NOT provide information that is not requested in this prompt.
-        Do NOT “think” beyond the supplied dataset.
-        If information is missing, simply omit it instead of guessing.
-        Preserve factual accuracy from the source data.
-        Re-structure and summarize the data cleanly without changing meaning.
-        Avoid duplicate statements and noisy scraped text.
-
-        The output should include only:
-
-        Departure and arrival airport codes
-        Approximate distance
-        Flight duration
-        Airlines mentioned
-        Fare ranges mentioned
-        Cheapest month/date information if available
-        Schedule/timing information if available
-        Direct vs connecting flight details if available
-        Alternative transport comparison only if explicitly mentioned in the data
-        Booking/timing notes only if explicitly mentioned
-
-        Formatting Requirements:
-
-        Use professional headings.
-        Use bullet points and tables where useful
-        Keep the response concise, clean, and traveler-friendly
-        Present the information like a professional travel assistant or airline summary
-
-        Final Rule:
-
-        Transform the provided raw data into a cleaner structured format only.
-        Do not generate new facts under any circumstance.
-    """
-    
-    chain  = _plain_chain(system_prompt=FLIGHT_INFORMATION_SYSTEM_PROMPT)
-    print("Flight chain output : ", chain)
-    result = invoke_with_retry(chain, {"input": content})
-    print("\n\nFlight Information from Web Search : ", result)
-
-    return result.content
+    content = _search_and_scrape(query=query, include_domains=["ixigo.com", "goibibo.com", "skyscanner.co.in"], url_keywords=[origin, destination])
+    chain = _structured_chain(_FLIGHT_PROMPT, _FlightResult)
+    try:
+        result = invoke_with_retry(chain, {"input": content})
+        print("\n\nFlight search result:", result)
+        return result.model_dump()
+    except Exception as e:
+        print(f"[flight-search] failed: {e}")
+        return {"flights": []}
 
 
-def search_train_prices(origin: str, destination: str, start_date: str) -> str:
-
+def search_train_prices(origin: str, destination: str, start_date: str) -> dict:
     query = f"Latest trains from {origin} to {destination} on {start_date}"
-
-    content = web_search(query=query,domains=["erail.in","rome2rio.com","easemytrip.com"])
-
-    TRAIN_INFORMATION_SYSTEM_PROMPT = """
-        Using only the provided train search results and scraped travel data, generate a structured and professional train information summary for the requested route.
-
-        Strict Instructions / Guardrails:
-
-        Use ONLY the information explicitly present in the provided data.
-        Do NOT add assumptions, external knowledge, predictions, or self-generated details.
-        Do NOT infer missing information.
-        Do NOT include unrelated search results or irrelevant content.
-        Do NOT rewrite information creatively.
-        Do NOT add city descriptions, tourism suggestions, or extra travel advice unless explicitly present in the data.
-        Do NOT provide information that is not requested in this prompt.
-        Do NOT "think" beyond the supplied dataset.
-        If information is missing, simply omit it instead of guessing.
-        Preserve factual accuracy from the source data.
-        Avoid duplicate statements and noisy scraped text.
-
-        The output should include only:
-
-        Departure and arrival station names
-        Approximate distance
-        Journey duration
-        Train names/numbers mentioned
-        Class options and fares mentioned
-        date/timing information if available
-        Schedule/timing information if available        
-
-        Formatting Requirements:
-
-        Use professional headings.
-        Use bullet points and tables where useful
-        Keep the response concise, clean, and traveler-friendly
-        Present the information like a professional travel assistant or railway summary
-
-        Final Rule:
-
-        Transform the provided raw data into a cleaner structured format only.
-        Do not generate new facts under any circumstance.
-    """
-
-    chain  = _plain_chain(system_prompt=TRAIN_INFORMATION_SYSTEM_PROMPT)
-    result = invoke_with_retry(chain, {"input": content})
-    print("Train Result : ", result)
-    print("\n\nTrain Information from Web Search : ", result)
-
-    return result.content
+    content = _search_and_scrape(query=query, include_domains=["railyatri.in", "ixigo.com", "goibibo.com"], url_keywords=[origin, destination])
+    chain = _structured_chain(_TRAIN_PROMPT, _TrainResult)
+    try:
+        result = invoke_with_retry(chain, {"input": content})
+        print("\n\nTrain search result:", result)
+        return result.model_dump()
+    except Exception as e:
+        print(f"[train-search] failed: {e}")
+        return {"trains": []}
 
 
-def search_bus_prices(origin: str, destination: str, start_date: str) -> str:
-
+def search_bus_prices(origin: str, destination: str, start_date: str) -> dict:
     query = f"Latest buses from {origin} to {destination} on {start_date}"
-
-    content = web_search(query=query,domains=[])
-
-    BUS_INFORMATION_SYSTEM_PROMPT = """
-        Using only the provided bus search results and scraped travel data, generate a structured and professional bus information summary for the requested route.
-
-        Strict Instructions / Guardrails:
-
-        Use ONLY the information explicitly present in the provided data.
-        Do NOT add assumptions, external knowledge, predictions, or self-generated details.
-        Do NOT infer missing information.
-        Do NOT include unrelated search results or irrelevant content.
-        Do NOT rewrite information creatively.
-        Do NOT add city descriptions, tourism suggestions, or extra travel advice unless explicitly present in the data.
-        Do NOT provide information that is not requested in this prompt.
-        Do NOT "think" beyond the supplied dataset.
-        If information is missing, simply omit it instead of guessing.
-        Preserve factual accuracy from the source data.
-        Re-structure and summarize the data cleanly without changing meaning.
-        Avoid duplicate statements and noisy scraped text.
-
-        The output should include only:
-
-        Departure and arrival bus stop/terminal names
-        Approximate distance
-        Journey duration
-        Bus operators/services mentioned
-        Bus type options (sleeper, AC, non-AC, etc.) and fare ranges mentioned
-        Cheapest date/timing information if available
-        Schedule/timing information if available
-        Direct vs connecting bus details if available
-        Booking/timing notes only if explicitly mentioned
-
-        Formatting Requirements:
-
-        Use professional headings.
-        Use bullet points and tables where useful
-        Keep the response concise, clean, and traveler-friendly
-        Present the information like a professional travel assistant or bus service summary
-
-        Final Rule:
-
-        Transform the provided raw data into a cleaner structured format only.
-        Do not generate new facts under any circumstance.
-    """
-
-    chain  = _plain_chain(system_prompt=BUS_INFORMATION_SYSTEM_PROMPT)
-    result = invoke_with_retry(chain, {"input": content})
-    print("\n\nBus Information from Web Search : ", result)
-
-    return result.content
+    content = _search_and_scrape(query=query, include_domains=["goibibo.com", "redbus.in","ixigo.com"], url_keywords=[origin, destination])
+    chain = _structured_chain(_BUS_PROMPT, _BusResult)
+    try:
+        result = invoke_with_retry(chain, {"input": content})
+        print("\n\nBus search result:", result)
+        return result.model_dump()
+    except Exception as e:
+        print(f"[bus-search] failed: {e}")
+        return {"buses": []}
 
 def search_accommodation_info(destination: str, checkin: str, checkout: str, travelers: int) -> str:
     queries = [
@@ -249,7 +245,7 @@ def search_accommodation_info(destination: str, checkin: str, checkout: str, tra
     ]
     parts = []
     for q in queries:
-        parts.append(web_search(q,domains=[]))
+        parts.append(web_search(q,inlcude_domains=[]))
     return "\n".join(parts)
 
 
@@ -260,7 +256,7 @@ def search_activities_food(destination: str, travel_style: str, interests: str) 
     ]
     parts = []
     for q in queries:
-        parts.append(web_search(q,domains=[]))
+        parts.append(web_search(q,inlcude_domains=[]))
     return "\n".join(parts)
 
 
@@ -271,5 +267,5 @@ def search_destination_info(destination: str, origin: str, num_days: int) -> str
     ]
     parts = []
     for q in queries:
-        parts.append(web_search(q,domains=[]))
+        parts.append(web_search(q,inlcude_domains=[]))
     return "\n".join(parts)

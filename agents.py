@@ -29,7 +29,7 @@ if not os.getenv("GROQ_API_KEY"):
     raise RuntimeError("Missing GROQ_API_KEY. Add it to .env before starting the API.")
 
 llm = ChatGroq(
-    model="groq/compound-mini",
+    model="openai/gpt-oss-120b",
     temperature=0,
     api_key=os.getenv("GROQ_API_KEY"),
 )

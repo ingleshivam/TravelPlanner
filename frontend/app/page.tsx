@@ -50,8 +50,8 @@ export default function Home() {
   const [budget, setBudget] = useState(15000);
   const [origin, setOrigin] = useState("Pune");
   const [destination, setDestination] = useState("Mumbai");
-  const [startDate, setStartDate] = useState("2026-05-29");
-  const [endDate, setEndDate] = useState("2026-05-30");
+  const [startDate, setStartDate] = useState("2026-05-30");
+  const [endDate, setEndDate] = useState("2026-05-31");
   const [days, setDays] = useState(1);
   const [travelers, setTravelers] = useState(1);
   const [style, setStyle] = useState<TravelStyle>("budget-backpacker");
@@ -118,6 +118,7 @@ export default function Home() {
       });
 
       const data = await response.json();
+      console.log("Data : ", data);
       if (!response.ok)
         throw new Error(data.detail || "Unable to generate a travel plan.");
       setPlan(data);
@@ -576,18 +577,25 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
               const aiOptions = (
                 (transport.intercity?.all_options || []) as any[]
               ).filter((o) => o.mode?.toLowerCase().includes(key));
+              const fareField: Record<string, string> = {
+                flight: "flight_fare",
+                train: "train_fare",
+                bus: "bus_fare",
+              };
               const rawByMode: Record<string, any[]> = {
                 flight: transport.available_options?.flights || [],
                 train: transport.available_options?.trains || [],
                 bus: transport.available_options?.buses || [],
               };
-              const rawOptions: any[] = rawByMode[key] || [];
+              const rawOptions: any[] = [...(rawByMode[key] || [])]
+                .sort((a, b) => (a[fareField[key]] || 0) - (b[fareField[key]] || 0))
+                .slice(0, 5);
               if (!aiOptions.length && !rawOptions.length) return null;
 
               const isRecommended = transport.intercity?.recommended_mode
                 ?.toLowerCase()
                 .includes(key);
-              const optionCount = aiOptions.length || rawOptions.length;
+              const optionCount = rawOptions.length || aiOptions.length;
 
               return (
                 <div
@@ -617,8 +625,114 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
                     </span>
                   </div>
 
-                  {/* AI-processed options — 3-column grid */}
-                  {aiOptions.length > 0 && (
+                  {/* Raw scraped options — always preferred (full detail) */}
+                  {rawOptions.length > 0 && (
+                    <div className="grid grid-cols-3 gap-3 p-4">
+                      {key === "train" &&
+                        rawOptions.map((t: any, i: number) => (
+                          <div
+                            key={i}
+                            className="flex flex-col gap-2 bg-background border border-border rounded-xl p-4"
+                          >
+                            <div>
+                              {t.train_number && (
+                                <p className="text-xs text-primary font-bold mb-0.5">
+                                  {t.train_number}
+                                </p>
+                              )}
+                              <p className="font-semibold text-foreground text-sm leading-snug">
+                                {t.train_name}
+                              </p>
+                            </div>
+                            {t.departure_time && (
+                              <p className="text-xs text-muted-foreground">
+                                🕐 Departs {t.departure_time}
+                              </p>
+                            )}
+                            {t.train_fare > 0 && (
+                              <div className="mt-auto pt-2 border-t border-border">
+                                <p className="text-xl font-bold text-primary leading-tight">
+                                  {plan.currency_symbol}
+                                  {Number(t.train_fare).toLocaleString()}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  fare
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      {key === "bus" &&
+                        rawOptions.map((b: any, i: number) => (
+                          <div
+                            key={i}
+                            className="flex flex-col gap-2 bg-background border border-border rounded-xl p-4"
+                          >
+                            <p className="font-semibold text-foreground text-sm leading-snug">
+                              {b.bus_name || "Bus"}
+                            </p>
+                            {b.bus_number && (
+                              <p className="text-xs text-primary font-medium">
+                                {b.bus_number}
+                              </p>
+                            )}
+                            {b.bus_time && (
+                              <p className="text-xs text-muted-foreground">
+                                🕐 Departs {b.bus_time}
+                              </p>
+                            )}
+                            {b.bus_fare > 0 && (
+                              <div className="mt-auto pt-2 border-t border-border">
+                                <p className="text-xl font-bold text-primary">
+                                  {plan.currency_symbol}
+                                  {Number(b.bus_fare).toLocaleString()}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  per person
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      {key === "flight" &&
+                        rawOptions.map((f: any, i: number) => (
+                          <div
+                            key={i}
+                            className="flex flex-col gap-2 bg-background border border-border rounded-xl p-4"
+                          >
+                            <div>
+                              <p className="font-semibold text-foreground text-sm leading-snug">
+                                {f.flight_name}
+                              </p>
+                              {f.flight_number && (
+                                <p className="text-xs text-primary font-medium">
+                                  {f.flight_number}
+                                </p>
+                              )}
+                            </div>
+                            {f.flight_time && (
+                              <p className="text-xs text-muted-foreground">
+                                🕐 Departs {f.flight_time}
+                              </p>
+                            )}
+                            {f.flight_fare > 0 && (
+                              <div className="mt-auto pt-2 border-t border-border">
+                                <p className="text-xl font-bold text-primary">
+                                  {plan.currency_symbol}
+                                  {Number(f.flight_fare).toLocaleString()}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  per person
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  )}
+
+                  {/* AI-only fallback when no raw data available */}
+                  {rawOptions.length === 0 && aiOptions.length > 0 && (
                     <div className="grid grid-cols-3 gap-3 p-4">
                       {aiOptions.map((opt: any, i: number) => (
                         <div
@@ -660,103 +774,6 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
                           )}
                         </div>
                       ))}
-                    </div>
-                  )}
-
-                  {/* Fallback: raw parsed options — 3-column grid */}
-                  {aiOptions.length === 0 && rawOptions.length > 0 && (
-                    <div className="grid grid-cols-3 gap-3 p-4">
-                      {key === "train" &&
-                        rawOptions.map((t: any, i: number) => (
-                          <div
-                            key={i}
-                            className="flex flex-col gap-2 bg-background border border-border rounded-xl p-4"
-                          >
-                            <p className="font-semibold text-foreground text-sm leading-snug">
-                              {t.train_number} · {t.name}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {t.departure} → {t.arrival}
-                            </p>
-                            {t.classes?.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 mt-1">
-                                {t.classes.map((cls: any, j: number) => (
-                                  <span
-                                    key={j}
-                                    className="px-2 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded-full"
-                                  >
-                                    {cls.class_name}: {plan.currency_symbol}
-                                    {Number(cls.price).toLocaleString()}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      {key === "bus" &&
-                        rawOptions.map((b: any, i: number) => (
-                          <div
-                            key={i}
-                            className="flex flex-col gap-2 bg-background border border-border rounded-xl p-4"
-                          >
-                            <p className="font-semibold text-foreground text-sm leading-snug">
-                              {b.operator}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {b.departure} → {b.arrival}
-                              {b.duration && (
-                                <span className="ml-1.5 bg-secondary px-1.5 py-0.5 rounded">
-                                  {b.duration}
-                                </span>
-                              )}
-                            </p>
-                            <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                              {b.bus_type && <span>{b.bus_type}</span>}
-                              {b.seats_available > 0 && (
-                                <span>{b.seats_available} seats</span>
-                              )}
-                              {b.rating && <span>⭐ {b.rating}</span>}
-                            </div>
-                            {b.price > 0 && (
-                              <p className="text-xl font-bold text-primary mt-auto pt-2 border-t border-border">
-                                {plan.currency_symbol}
-                                {Number(b.price).toLocaleString()}
-                              </p>
-                            )}
-                          </div>
-                        ))}
-                      {key === "flight" &&
-                        rawOptions.map((f: any, i: number) => (
-                          <div
-                            key={i}
-                            className="flex flex-col gap-2 bg-background border border-border rounded-xl p-4"
-                          >
-                            <p className="font-semibold text-foreground text-sm leading-snug">
-                              {f.airline}
-                              {f.flight_number ? ` · ${f.flight_number}` : ""}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {f.departure} → {f.arrival}
-                              {f.duration && (
-                                <span className="ml-1.5 bg-secondary px-1.5 py-0.5 rounded">
-                                  {f.duration}
-                                </span>
-                              )}
-                            </p>
-                            <div className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                              {f.seat_class && <span>{f.seat_class}</span>}
-                              {f.seats_available > 0 && (
-                                <span>{f.seats_available} seats</span>
-                              )}
-                            </div>
-                            {f.price > 0 && (
-                              <p className="text-xl font-bold text-primary mt-auto pt-2 border-t border-border">
-                                {plan.currency_symbol}
-                                {Number(f.price).toLocaleString()}
-                              </p>
-                            )}
-                          </div>
-                        ))}
                     </div>
                   )}
                 </div>
