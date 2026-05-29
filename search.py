@@ -79,9 +79,9 @@ def _get_fc() -> FirecrawlApp:
     return _fc_client
 
 
-def web_search(query: str, inlcude_domains:list, max_results: int = 1) -> str:
+def web_search(query: str, include_domains:list, max_results: int = 1) -> str:
     try:
-        response = _get_tavily().search(query=query, max_results=max_results, search_depth="advanced", include_domains=inlcude_domains)
+        response = _get_tavily().search(query=query, max_results=max_results, search_depth="advanced", include_domains=include_domains)
         results = response.get("results", [])
         if not results:
             return "No results found."
@@ -107,16 +107,19 @@ def _scrape(url: str, wait_ms: int = 0) -> str:
         return f"(Scrape unavailable: {e})"
 
 
-def _scrape_middle(url: str, wait_ms: int = 0, max_lines: int = 500) -> str:
+def _scrape_middle(url: str, wait_ms: int = 0, max_lines: int = 500, max_chars: int = 15000) -> str:
     content = _scrape(url, wait_ms)
     lines = content.splitlines()
     total = len(lines)
     skip = int(total * 0.15)
     middle = lines[skip: total - skip] if total > skip * 2 else lines
-    return "\n".join(middle[:max_lines])
+    text = "\n".join(middle[:max_lines])
+    if len(text) > max_chars:
+        text = text[:max_chars] + "\n[truncated]"
+    return text
 
 
-def _search_and_scrape(query: str, include_domains: list, url_keywords: list[str] = None) -> str:
+def _search_and_scrape(query: str, include_domains: list, url_keywords: list[str] = None, max_chars: int = 10000) -> str:
     try:
         response = _get_tavily().search(
             query=query,
@@ -137,7 +140,7 @@ def _search_and_scrape(query: str, include_domains: list, url_keywords: list[str
         if url is None:
             url = results[0]["url"]
         print(f"[scrape] URL: {url}")
-        return _scrape_middle(url)
+        return _scrape_middle(url, max_chars=max_chars)
     except Exception as e:
         return f"(Search unavailable: {e})"
 
@@ -239,33 +242,27 @@ def search_bus_prices(origin: str, destination: str, start_date: str) -> dict:
         return {"buses": []}
 
 def search_accommodation_info(destination: str, checkin: str, checkout: str, travelers: int) -> str:
-    queries = [
-        f"best budget hotels hostels {destination} checkin {checkin} checkout {checkout} {travelers} travelers price per night 2025",
-        f"cheap accommodation {destination} {travelers} guests backpacker hostel guesthouse review",
-    ]
-    parts = []
-    for q in queries:
-        parts.append(web_search(q,inlcude_domains=[]))
-    return "\n".join(parts)
+    query = f"best budget hotels hostels in {destination} for {travelers} travelers checkin {checkin} checkout {checkout} price per night"
+    return _search_and_scrape(query, include_domains=["goibibo.com", "ixigo.com"], url_keywords=[destination])
 
 
 def search_activities_food(destination: str, travel_style: str, interests: str) -> str:
     queries = [
-        f"free things to do {destination} {interests} top attractions {travel_style} travel 2025",
-        f"best street food local restaurants {destination} {interests} cheap eats budget",
+        f"free things to do in {destination} {interests} top attractions {travel_style} travel",
+        f"best street food local restaurants in {destination} {interests} cheap eats budget",
     ]
     parts = []
     for q in queries:
-        parts.append(web_search(q,inlcude_domains=[]))
+        parts.append(_search_and_scrape(q, include_domains=["tripadvisor.in", "wanderlog.com"], url_keywords=[destination]))
     return "\n".join(parts)
 
 
 def search_destination_info(destination: str, origin: str, num_days: int) -> str:
     queries = [
-        f"budget travel {destination} daily cost backpacker 2025",
-        f"visa requirements {origin} passport {destination} 2025",
+        f"budget travel in {destination} daily cost backpacker",
+        f"visa requirements {origin} passport {destination}",
     ]
     parts = []
     for q in queries:
-        parts.append(web_search(q,inlcude_domains=[]))
+        parts.append(_search_and_scrape(q, include_domains=["holidify.com"], url_keywords=[destination]))
     return "\n".join(parts)
