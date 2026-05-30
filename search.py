@@ -119,7 +119,13 @@ def _scrape_middle(url: str, wait_ms: int = 0, max_lines: int = 500, max_chars: 
     return text
 
 
-def _search_and_scrape(query: str, include_domains: list, url_keywords: list[str] = None, max_chars: int = 10000) -> str:
+def _search_and_scrape(
+    query: str,
+    include_domains: list,
+    url_keywords: list[str] = None,
+    reject_url_keywords: list[str] = None,
+    max_chars: int = 10000,
+) -> str:
     try:
         response = _get_tavily().search(
             query=query,
@@ -128,15 +134,18 @@ def _search_and_scrape(query: str, include_domains: list, url_keywords: list[str
             include_domains=include_domains,
         )
         results = response.get("results", [])
+        print("URL RESULTS : ", results)
         if not results:
             return "No results found."
         results.sort(key=lambda r: r.get("score", 0), reverse=True)
         url = None
-        if url_keywords:
-            for r in results:
-                if all(kw.lower() in r["url"].lower() for kw in url_keywords):
-                    url = r["url"]
-                    break
+        for r in results:
+            url_lower = r["url"].lower()
+            if reject_url_keywords and any(kw in url_lower for kw in reject_url_keywords):
+                continue
+            if url_keywords is None or all(kw.lower() in url_lower for kw in url_keywords):
+                url = r["url"]
+                break
         if url is None:
             url = results[0]["url"]
         print(f"[scrape] URL: {url}")
@@ -204,8 +213,15 @@ _BUS_PROMPT = (
 
 
 def search_transport_prices(origin: str, destination: str, start_date: str) -> dict:
+    print("Flight origin : ", origin)
+    print("Flight destination : ", destination)
     query = f"Latest flights from {origin} to {destination} on {start_date}"
-    content = _search_and_scrape(query=query, include_domains=["ixigo.com", "goibibo.com", "skyscanner.co.in"], url_keywords=[origin, destination])
+    content = _search_and_scrape(
+        query=query,
+        include_domains=["ixigo.com", "goibibo.com", "skyscanner.co.in"],
+        url_keywords=[origin, destination],
+        reject_url_keywords=["train", "rail", "bus"],
+    )
     chain = _structured_chain(_FLIGHT_PROMPT, _FlightResult)
     try:
         result = invoke_with_retry(chain, {"input": content})
@@ -217,8 +233,14 @@ def search_transport_prices(origin: str, destination: str, start_date: str) -> d
 
 
 def search_train_prices(origin: str, destination: str, start_date: str) -> dict:
+    print("Train origin : ", origin)
+    print("Train destination : ", destination)
     query = f"Latest trains from {origin} to {destination} on {start_date}"
-    content = _search_and_scrape(query=query, include_domains=["railyatri.in", "ixigo.com", "goibibo.com"], url_keywords=[origin, destination])
+    content = _search_and_scrape(
+        query=query,
+        include_domains=["railyatri.in", "ixigo.com", "goibibo.com"],
+        url_keywords=[destination],
+    )
     chain = _structured_chain(_TRAIN_PROMPT, _TrainResult)
     try:
         result = invoke_with_retry(chain, {"input": content})

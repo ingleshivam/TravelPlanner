@@ -25,12 +25,14 @@ def _today() -> str:
 
 def _extract_prompt() -> str:
     return (
-        f"Today is {_today()}. Extract travel parameters from this conversation into JSON.\n"
+        f"Today is {_today()}. Extract travel parameters from the ENTIRE conversation into JSON.\n"
         "- Convert relative dates (next Saturday, this weekend, June 10) to YYYY-MM-DD.\n"
+        "- If the user corrects a value later in the conversation, use the latest value.\n"
+        "- Set start_date to null if the date is in the past (before today).\n"
         "- Map styles: budget/backpacker→budget-backpacker, mid/moderate→mid-range, comfort/luxury→comfort-budget.\n"
-        "- Only extract values that are explicitly stated. Use null for anything not mentioned.\n"
-        'Schema: {"budget": null, "origin": null, "destination": null, "start_date": null, '
-        '"num_days": null, "num_travelers": null, "travel_style": null, "interests": null}'
+        "- Extract ALL values mentioned anywhere in the conversation, not just the latest message.\n"
+        'Schema: {{"budget": null, "origin": null, "destination": null, "start_date": null, '
+        '"num_days": null, "num_travelers": null, "travel_style": null, "interests": null}}'
     )
 
 
@@ -66,12 +68,21 @@ def extract_params(history: list) -> dict:
     try:
         result = chain.invoke({"conv": _history_text(history)})
         return {k: v for k, v in result.model_dump().items() if v is not None}
-    except Exception:
+    except Exception as e:
+        print(f"[chat_session] extract_params failed: {e}")
         return {}
 
 
 def missing_fields(params: dict) -> list:
-    return [f for f in _REQUIRED if not params.get(f)]
+    missing = [f for f in _REQUIRED if not params.get(f)]
+    # Treat a past start_date as missing so the user is asked for a future date
+    if "start_date" not in missing and params.get("start_date"):
+        try:
+            if date.fromisoformat(params["start_date"]) < date.today():
+                missing.append("start_date")
+        except ValueError:
+            missing.append("start_date")
+    return missing
 
 
 def follow_up_question(history: list, missing: list) -> str:
