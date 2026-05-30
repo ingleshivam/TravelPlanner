@@ -1,4 +1,5 @@
 import asyncio
+from datetime import date, timedelta
 from typing import Dict, List, Literal, Optional
 
 from dotenv import load_dotenv
@@ -7,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator, model_validator
 from starlette.concurrency import run_in_threadpool
 
+import chat_session as cs
 from graph import travel_planner
 
 load_dotenv()
@@ -87,6 +89,18 @@ app.add_middleware(
 )
 
 
+class ChatRequest(BaseModel):
+    session_id: str
+    message: str
+
+
+class ChatResponse(BaseModel):
+    session_id: str
+    reply: str
+    plan: Optional[TravelPlanResponse] = None
+    awaiting_info: bool = True
+
+
 @app.get("/health")
 def health() -> Dict[str, str]:
     return {"status": "ok"}
@@ -156,3 +170,90 @@ async def create_travel_plan(request: TravelPlanRequest) -> Dict:
         "raw_search_accommodation": result.get("raw_search_accommodation"),
         "raw_search_itinerary": result.get("raw_search_itinerary"),
     }
+
+
+@app.post("/api/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest) -> Dict:
+    session = cs.get_or_create(request.session_id)
+    session["history"].append({"role": "user", "content": request.message})
+
+    new_params = await run_in_threadpool(cs.extract_params, session["history"])
+    session["params"].update(new_params)
+    params = session["params"]
+
+    missing = cs.missing_fields(params)
+
+    if missing:
+        reply = await run_in_threadpool(cs.follow_up_question, session["history"], missing)
+        session["history"].append({"role": "assistant", "content": reply})
+        return {"session_id": request.session_id, "reply": reply, "plan": None, "awaiting_info": True}
+
+    start = date.fromisoformat(params["start_date"])
+    end_date = (start + timedelta(days=int(params["num_days"]))).isoformat()
+
+    initial_state = {
+        "user_budget": params["budget"],
+        "currency": "",
+        "currency_symbol": "",
+        "origin": params["origin"],
+        "destination": params.get("destination") or None,
+        "start_date": params["start_date"],
+        "end_date": end_date,
+        "num_days": int(params["num_days"]),
+        "num_travelers": int(params["num_travelers"]),
+        "travel_style": params["travel_style"],
+        "interests": params.get("interests") or [],
+        "budget_allocation": {"transport": 35, "accommodation": 35, "food": 15, "activities": 10, "misc": 5},
+        "destination_research": None,
+        "transport_plan": None,
+        "accommodation_plan": None,
+        "itinerary": None,
+        "budget_summary": None,
+        "raw_search_destination": None,
+        "raw_search_transport": None,
+        "raw_search_accommodation": None,
+        "raw_search_itinerary": None,
+        "budget_overrun": False,
+        "overrun_amount": 0.0,
+        "budget_constraint_message": None,
+        "reroute_count": 0,
+        "step_count": 0,
+        "messages": [],
+        "final_plan_ready": False,
+    }
+
+    try:
+        result = await asyncio.wait_for(
+            run_in_threadpool(travel_planner.invoke, initial_state),
+            timeout=240.0,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Travel plan generation timed out.")
+    except Exception as exc:
+        import traceback
+        raise HTTPException(
+            status_code=500,
+            detail=f"Plan generation failed: {type(exc).__name__}: {exc}\n{traceback.format_exc()}",
+        )
+
+    dest = result.get("destination") or params.get("destination") or "your destination"
+    reply = f"Here's your {params['num_days']}-day trip to {dest}! 🎉"
+    session["history"].append({"role": "assistant", "content": reply})
+
+    plan = {
+        "currency": result.get("currency", ""),
+        "currency_symbol": result.get("currency_symbol", ""),
+        "destination": result.get("destination"),
+        "destination_research": result.get("destination_research"),
+        "transport_plan": result.get("transport_plan"),
+        "accommodation_plan": result.get("accommodation_plan"),
+        "itinerary": result.get("itinerary"),
+        "budget_summary": result.get("budget_summary"),
+        "final_plan_ready": result.get("final_plan_ready", False),
+        "raw_search_destination": result.get("raw_search_destination"),
+        "raw_search_transport": result.get("raw_search_transport"),
+        "raw_search_accommodation": result.get("raw_search_accommodation"),
+        "raw_search_itinerary": result.get("raw_search_itinerary"),
+    }
+
+    return {"session_id": request.session_id, "reply": reply, "plan": plan, "awaiting_info": False}

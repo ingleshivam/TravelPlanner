@@ -1,24 +1,15 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  MapPin,
-  Calendar,
-  Zap,
-  AlertCircle,
-  CheckCircle,
   PlaneTakeoff,
+  SendHorizonal,
+  Plus,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
-
-type TravelStyle = "budget-backpacker" | "mid-range" | "comfort-budget";
-
-type Allocation = {
-  transport: number;
-  accommodation: number;
-  food: number;
-  activities: number;
-  misc: number;
-};
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type TravelPlan = {
   currency: string;
@@ -30,366 +21,299 @@ type TravelPlan = {
   itinerary?: Record<string, any> | null;
   budget_summary?: Record<string, any> | null;
   final_plan_ready: boolean;
-  raw_search_destination?: string | null;
-  raw_search_transport?: string | null;
-  raw_search_accommodation?: string | null;
-  raw_search_itinerary?: string | null;
+};
+
+type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  plan?: TravelPlan;
+  isLoading?: boolean;
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-const defaultAllocation: Allocation = {
-  transport: 35,
-  accommodation: 35,
-  food: 15,
-  activities: 10,
-  misc: 5,
-};
+const EXAMPLE_PROMPTS = [
+  "Plan a 3-day budget trip from Pune to Goa in June for 2 people, budget ₹20,000",
+  "5 days in Rajasthan from Delhi, ₹30,000, mid-range, culture & food",
+  "Weekend trip from Mumbai, budget ₹10,000, surprise me with a destination",
+];
 
 export default function Home() {
-  const [budget, setBudget] = useState(15000);
-  const [origin, setOrigin] = useState("Pune");
-  const [destination, setDestination] = useState("Mumbai");
-  const [startDate, setStartDate] = useState("2026-05-30");
-  const [endDate, setEndDate] = useState("2026-05-31");
-  const [days, setDays] = useState(1);
-  const [travelers, setTravelers] = useState(1);
-  const [style, setStyle] = useState<TravelStyle>("budget-backpacker");
-  const [interests, setInterests] = useState(
-    "culture, street food, temples, markets",
-  );
-  const [allocation, setAllocation] = useState<Allocation>(defaultAllocation);
-  const [plan, setPlan] = useState<TravelPlan | null>(null);
-  const [error, setError] = useState("");
+  const [sessionId, setSessionId] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const allocationTotal = useMemo(
-    () => Object.values(allocation).reduce((sum, v) => sum + v, 0),
-    [allocation],
-  );
-
-  function recalcDays(start: string, end: string) {
-    const diff = Math.round(
-      (new Date(end).getTime() - new Date(start).getTime()) / 86400000,
-    );
-    if (diff > 0) setDays(diff);
-  }
-
-  function handleStartDate(value: string) {
-    setStartDate(value);
-    if (endDate) recalcDays(value, endDate);
-  }
-
-  function handleEndDate(value: string) {
-    setEndDate(value);
-    if (startDate) recalcDays(startDate, value);
-  }
-
-  async function submitPlan(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    setPlan(null);
-
-    if (allocationTotal > 100) {
-      setError("Budget allocation must be 100% or less.");
-      return;
+  useEffect(() => {
+    let sid = localStorage.getItem("travel_session_id") ?? "";
+    if (!sid) {
+      sid = crypto.randomUUID();
+      localStorage.setItem("travel_session_id", sid);
     }
+    setSessionId(sid);
+  }, []);
 
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${Math.min(ta.scrollHeight, 128)}px`;
+  }, [input]);
+
+  function startNewChat() {
+    const sid = crypto.randomUUID();
+    localStorage.setItem("travel_session_id", sid);
+    setSessionId(sid);
+    setMessages([]);
+    setInput("");
+  }
+
+  async function sendMessage(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || loading || !sessionId) return;
+
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: trimmed,
+    };
+    const thinkingMsg: ChatMessage = {
+      id: "thinking",
+      role: "assistant",
+      content: "",
+      isLoading: true,
+    };
+
+    setMessages((prev) => [...prev, userMsg, thinkingMsg]);
+    setInput("");
     setLoading(true);
+
     try {
-      const response = await fetch(`${API_URL}/api/travel-plan`, {
+      const res = await fetch(`${API_URL}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_budget: budget,
-          origin,
-          destination,
-          start_date: startDate,
-          end_date: endDate,
-          num_days: days,
-          num_travelers: travelers,
-          travel_style: style,
-          interests: interests
-            .split(",")
-            .map((i) => i.trim())
-            .filter(Boolean),
-          budget_allocation: allocation,
-        }),
+        body: JSON.stringify({ session_id: sessionId, message: trimmed }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? "Something went wrong.");
 
-      const data = await response.json();
-      console.log("Data : ", data);
-      if (!response.ok)
-        throw new Error(data.detail || "Unable to generate a travel plan.");
-      setPlan(data);
+      const assistantMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: data.reply,
+        plan: data.plan ?? undefined,
+      };
+      setMessages((prev) => [...prev.slice(0, -1), assistantMsg]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      const errMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: err instanceof Error ? err.message : "Something went wrong.",
+      };
+      setMessages((prev) => [...prev.slice(0, -1), errMsg]);
     } finally {
       setLoading(false);
     }
   }
 
-  function updateAllocation(key: keyof Allocation, value: number) {
-    setAllocation((cur) => ({ ...cur, [key]: value }));
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(input);
+    }
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {/* ── LEFT SIDEBAR: Input Form ───────────────────────────────── */}
-      <aside className="w-[32%] min-w-[300px] max-w-[480px] border-r border-border bg-card flex flex-col overflow-hidden shrink-0">
-        {/* Sidebar header */}
-        <div className="px-6 py-5 border-b border-border shrink-0 bg-gradient-to-br from-card to-secondary/30">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-2xl">✈️</span>
-            <p className="text-xs font-bold text-primary uppercase tracking-widest">
-              Travel Planner
-            </p>
-          </div>
-          <h1 className="text-2xl font-bold text-foreground leading-tight mb-2">
-            Plan Your Adventure
-          </h1>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            Tell us where you want to go and we&apos;ll create a perfectly
-            balanced budget plan.
-          </p>
+    <div className="flex flex-col h-screen bg-background">
+      {/* Header */}
+      <header className="flex items-center justify-between px-5 py-3 border-b border-border bg-card shrink-0">
+        <div className="flex items-center gap-2.5">
+          <PlaneTakeoff size={20} className="text-primary" />
+          <span className="font-semibold text-foreground">AI Travel Planner</span>
         </div>
+        <button
+          onClick={startNewChat}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition"
+        >
+          <Plus size={15} />
+          New Chat
+        </button>
+      </header>
 
-        {/* Scrollable form */}
-        <div className="flex-1 overflow-y-auto">
-          <form onSubmit={submitPlan} className="p-6 space-y-5">
-            {/* Budget & Travelers */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-semibold text-foreground">
-                  Budget
-                </label>
-                <input
-                  className="px-3 py-2.5 rounded-lg border border-border bg-white text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-                  type="number"
-                  min="1"
-                  value={budget}
-                  onChange={(e) => setBudget(Number(e.target.value))}
-                  placeholder="15000"
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-semibold text-foreground">
-                  Travelers
-                </label>
-                <input
-                  className="px-3 py-2.5 rounded-lg border border-border bg-white text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-                  type="number"
-                  min="1"
-                  value={travelers}
-                  onChange={(e) => setTravelers(Number(e.target.value))}
-                />
-              </div>
-            </div>
-
-            {/* Origin */}
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <MapPin size={16} className="text-primary" /> Origin
-              </label>
-              <input
-                className="px-3 py-2.5 rounded-lg border border-border bg-white text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-                value={origin}
-                onChange={(e) => setOrigin(e.target.value)}
-                placeholder="e.g. Pune"
-              />
-            </div>
-
-            {/* Destination */}
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <MapPin size={16} className="text-primary" /> Destination
-              </label>
-              <input
-                className="px-3 py-2.5 rounded-lg border border-border bg-white text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-                value={destination}
-                onChange={(e) => setDestination(e.target.value)}
-                placeholder="Leave blank for AI recommendation"
-              />
-            </div>
-
-            {/* Dates */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  <Calendar size={16} className="text-primary" /> Start
-                </label>
-                <input
-                  className="px-3 py-2.5 rounded-lg border border-border bg-white text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => handleStartDate(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  <Calendar size={16} className="text-primary" /> End
-                </label>
-                <input
-                  className="px-3 py-2.5 rounded-lg border border-border bg-white text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => handleEndDate(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Days (auto) */}
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-foreground">
-                Duration
-              </label>
-              <div className="px-3 py-2.5 rounded-lg border border-border bg-muted/50 text-foreground flex items-center">
-                <span className="font-medium">
-                  {days} day{days !== 1 ? "s" : ""}
-                </span>
-              </div>
-            </div>
-
-            {/* Travel style */}
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <Zap size={16} className="text-primary" /> Travel Style
-              </label>
-              <select
-                className="px-3 py-2.5 rounded-lg border border-border bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-                value={style}
-                onChange={(e) => setStyle(e.target.value as TravelStyle)}
-              >
-                <option value="budget-backpacker">Budget Backpacker</option>
-                <option value="mid-range">Mid Range</option>
-                <option value="comfort-budget">Comfort Budget</option>
-              </select>
-            </div>
-
-            {/* Interests */}
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-foreground">
-                Interests
-              </label>
-              <input
-                className="px-3 py-2.5 rounded-lg border border-border bg-white text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-                value={interests}
-                onChange={(e) => setInterests(e.target.value)}
-                placeholder="culture, temples, street food..."
-              />
-              <span className="text-xs text-muted-foreground">
-                Comma-separated
-              </span>
-            </div>
-
-            {/* Budget allocation */}
-            <div className="border-t border-border pt-5">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-sm font-bold text-foreground uppercase tracking-wider">
-                  Budget Allocation
-                </span>
-                <span
-                  className={`text-xs font-bold px-3 py-1 rounded-full ${allocationTotal > 100 ? "bg-destructive/10 text-destructive" : "bg-green-100/50 text-green-700"}`}
-                >
-                  {allocationTotal}%
-                </span>
-              </div>
-              <div className="space-y-4">
-                {(Object.keys(allocation) as (keyof Allocation)[]).map(
-                  (key) => (
-                    <div key={key} className="flex flex-col gap-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground font-medium capitalize">
-                          {key.replace(/_/g, " ")}
-                        </span>
-                        <span className="font-semibold text-primary">
-                          {allocation[key]}%
-                        </span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={allocation[key]}
-                        onChange={(e) =>
-                          updateAllocation(key, Number(e.target.value))
-                        }
-                        className="w-full h-2 bg-secondary rounded-full appearance-none cursor-pointer accent-primary"
-                      />
-                    </div>
-                  ),
-                )}
-              </div>
-            </div>
-
-            {error && (
-              <div className="flex items-start gap-3 p-3 bg-destructive/5 border border-destructive/20 text-destructive rounded-lg text-sm">
-                <AlertCircle size={16} className="shrink-0 mt-0.5" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold rounded-lg disabled:opacity-60 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 mt-2"
-            >
-              {loading ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                  <span>Planning your trip...</span>
-                </>
-              ) : (
-                <>
-                  <Zap size={18} />
-                  Generate Plan
-                </>
-              )}
-            </button>
-          </form>
-        </div>
-      </aside>
-
-      {/* ── RIGHT PANEL: Results ───────────────────────────────────── */}
-      <main className="flex-1 overflow-y-auto bg-background">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-            <div className="w-12 h-12 border-4 border-border border-t-primary rounded-full animate-spin" />
-            <div className="text-center">
-              <p className="font-semibold text-foreground text-lg">
-                Planning your adventure...
-              </p>
-              <p className="text-sm mt-2 text-muted-foreground">
-                This may take a moment
-              </p>
-            </div>
-          </div>
-        ) : plan ? (
-          <div className="p-8">
-            <PlanResult plan={plan} />
-          </div>
+      {/* Messages area */}
+      <main className="flex-1 overflow-y-auto">
+        {messages.length === 0 ? (
+          <WelcomeScreen onSelect={(p) => sendMessage(p)} />
         ) : (
-          <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground px-8">
-            <PlaneTakeoff size={60} className="text-border/50" />
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-foreground mb-3">
-                Your travel plan awaits
-              </h2>
-              <p className="text-base text-muted-foreground max-w-sm">
-                Fill in your travel details on the left and click "Generate
-                Plan" to get started.
-              </p>
-            </div>
+          <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+            {messages.map((msg) => (
+              <MessageBubble key={msg.id} msg={msg} />
+            ))}
+            <div ref={bottomRef} />
           </div>
         )}
       </main>
+
+      {/* Input bar */}
+      <div className="shrink-0 border-t border-border bg-card px-4 py-3">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex gap-3 items-end">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Describe your trip... (e.g. 3 days in Goa from Pune, ₹15,000 budget)"
+              rows={1}
+              disabled={loading}
+              className="flex-1 resize-none rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition disabled:opacity-50"
+              style={{ minHeight: "48px", maxHeight: "128px" }}
+            />
+            <button
+              onClick={() => sendMessage(input)}
+              disabled={loading || !input.trim()}
+              className="flex items-center justify-center w-11 h-11 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition shrink-0"
+            >
+              <SendHorizonal size={17} />
+            </button>
+          </div>
+          <p className="text-center text-xs text-muted-foreground mt-2">
+            Enter to send · Shift+Enter for new line
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
 
+const MD_COMPONENTS = {
+  p: ({ children }: any) => <p className="leading-relaxed my-1">{children}</p>,
+  h1: ({ children }: any) => <h1 className="text-xl font-bold mt-4 mb-1">{children}</h1>,
+  h2: ({ children }: any) => <h2 className="text-lg font-bold mt-3 mb-1">{children}</h2>,
+  h3: ({ children }: any) => <h3 className="text-base font-bold mt-2 mb-1">{children}</h3>,
+  strong: ({ children }: any) => <strong className="font-semibold text-foreground">{children}</strong>,
+  ul: ({ children }: any) => <ul className="list-disc list-inside space-y-1 my-1">{children}</ul>,
+  ol: ({ children }: any) => <ol className="list-decimal list-inside space-y-1 my-1">{children}</ol>,
+  li: ({ children }: any) => <li className="leading-relaxed">{children}</li>,
+  hr: () => <hr className="border-border my-3" />,
+  code: ({ children }: any) => (
+    <code className="text-xs bg-secondary px-1 py-0.5 rounded font-mono">{children}</code>
+  ),
+  table: ({ children }: any) => (
+    <div className="overflow-x-auto my-3">
+      <table className="w-full text-sm border-collapse">{children}</table>
+    </div>
+  ),
+  thead: ({ children }: any) => <thead>{children}</thead>,
+  tbody: ({ children }: any) => <tbody>{children}</tbody>,
+  tr: ({ children }: any) => <tr className="border-b border-border">{children}</tr>,
+  th: ({ children }: any) => (
+    <th className="text-left px-3 py-2 bg-secondary/50 font-semibold text-foreground border border-border">
+      {children}
+    </th>
+  ),
+  td: ({ children }: any) => (
+    <td className="px-3 py-2 border border-border text-muted-foreground">{children}</td>
+  ),
+};
+
+function WelcomeScreen({ onSelect }: { onSelect: (p: string) => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full px-4 py-16 gap-10">
+      <div className="flex flex-col items-center gap-4 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+          <PlaneTakeoff size={32} className="text-primary" />
+        </div>
+        <div>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            AI Travel Planner
+          </h1>
+          <p className="text-muted-foreground max-w-md text-sm leading-relaxed">
+            Tell me where you&apos;d like to go. I&apos;ll find transport,
+            accommodation, and build a day-by-day itinerary within your budget.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 w-full max-w-lg">
+        {EXAMPLE_PROMPTS.map((p, i) => (
+          <button
+            key={i}
+            onClick={() => onSelect(p)}
+            className="text-left px-4 py-3 rounded-xl border border-border bg-card hover:bg-secondary/50 text-sm text-foreground transition"
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({ msg }: { msg: ChatMessage }) {
+  if (msg.role === "user") {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[75%] px-4 py-3 rounded-2xl rounded-tr-sm bg-primary text-primary-foreground text-sm leading-relaxed whitespace-pre-wrap">
+          {msg.content}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-3 items-start">
+      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+        <PlaneTakeoff size={14} className="text-primary" />
+      </div>
+      <div className="flex-1 min-w-0 space-y-5">
+        {msg.isLoading ? (
+          <ThinkingDots />
+        ) : (
+          <>
+            {msg.content && (
+              <div className="text-sm text-foreground leading-relaxed space-y-2">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
+                  {msg.content}
+                </ReactMarkdown>
+              </div>
+            )}
+            {msg.plan && <PlanResult plan={msg.plan} />}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ThinkingDots() {
+  return (
+    <div className="flex items-center gap-1.5 py-2">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce"
+          style={{ animationDelay: `${i * 0.15}s` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
 function money(value: number, plan: TravelPlan) {
   return `${plan.currency_symbol}${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} ${plan.currency}`.trim();
 }
+
+// ── Plan display (rendered inline inside the chat) ─────────────────────────
 
 function PlanResult({ plan }: { plan: TravelPlan }) {
   const summary = plan.budget_summary?.budget_summary;
@@ -398,22 +322,16 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
   const accommodation = plan.accommodation_plan;
   const research = plan.destination_research;
 
-  const statusClass =
-    summary?.status === "OVER_BUDGET"
-      ? "bad"
-      : summary?.status === "TIGHT_FIT"
-        ? "review"
-        : "ready";
-
   return (
-    <section className="max-w-4xl mx-auto space-y-8">
-      <div className="flex flex-col gap-3 mb-8">
-        <div className="flex items-baseline gap-3">
-          <h2 className="text-4xl font-bold text-foreground">
+    <section className="space-y-8">
+      {/* Destination header */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-baseline gap-3 flex-wrap">
+          <h2 className="text-3xl font-bold text-foreground">
             {plan.destination || "Recommended destination"}
           </h2>
           <div
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${
               plan.final_plan_ready
                 ? "bg-green-100/50 text-green-700"
                 : summary?.status === "TIGHT_FIT"
@@ -423,31 +341,28 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
           >
             {plan.final_plan_ready ? (
               <>
-                <CheckCircle size={16} /> Ready to Go
+                <CheckCircle size={13} /> Ready to Go
               </>
             ) : summary?.status === "TIGHT_FIT" ? (
               <>
-                <AlertCircle size={16} /> Tight Fit
+                <AlertCircle size={13} /> Tight Fit
               </>
             ) : (
               <>
-                <AlertCircle size={16} /> Review Budget
+                <AlertCircle size={13} /> Review Budget
               </>
             )}
           </div>
         </div>
-        <p className="text-muted-foreground">
-          🎉 Your AI-generated travel plan
-        </p>
       </div>
 
       {/* Budget Summary */}
       {summary && (
-        <div className="bg-card rounded-2xl border border-border p-8">
-          <h3 className="text-xl font-bold text-foreground mb-6">
+        <div className="bg-card rounded-2xl border border-border p-6">
+          <h3 className="text-lg font-bold text-foreground mb-5">
             Budget Summary
           </h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-6">
             <MetricCard
               label="Your Budget"
               value={money(summary.total_budget, plan)}
@@ -466,24 +381,24 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
             />
           </div>
 
-          <p className="text-muted-foreground mb-6 leading-relaxed">
+          <p className="text-muted-foreground mb-5 leading-relaxed text-sm">
             {summary.verdict}
           </p>
 
           {summary.breakdown && (
-            <div className="mb-6">
-              <p className="text-sm font-bold text-foreground uppercase tracking-wide mb-4">
+            <div className="mb-5">
+              <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-3">
                 Cost Breakdown
               </p>
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {Object.entries(
                   summary.breakdown as Record<string, number>,
                 ).map(([k, v]) => (
                   <div className="flex justify-between items-center" key={k}>
-                    <span className="text-muted-foreground capitalize">
+                    <span className="text-muted-foreground text-sm capitalize">
                       {k.replace(/_/g, " ")}
                     </span>
-                    <strong className="text-foreground">
+                    <strong className="text-foreground text-sm">
                       {money(v, plan)}
                     </strong>
                   </div>
@@ -494,10 +409,10 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
 
           {summary.top_savings_opportunities?.length > 0 && (
             <div className="bg-accent/5 rounded-xl p-4 border border-accent/10">
-              <p className="text-sm font-bold text-foreground mb-3">
+              <p className="text-sm font-bold text-foreground mb-2">
                 💰 Savings Opportunities
               </p>
-              <ul className="space-y-2">
+              <ul className="space-y-1.5">
                 {summary.top_savings_opportunities.map(
                   (tip: string, i: number) => (
                     <li
@@ -518,28 +433,28 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
       {/* Destination Research */}
       {research?.destinations?.length > 0 && (
         <div className="space-y-4">
-          <h3 className="text-xl font-bold text-foreground">
+          <h3 className="text-lg font-bold text-foreground">
             Destination Options
           </h3>
           <p className="text-muted-foreground text-sm">
             AI-recommended based on your budget and interests
           </p>
-          <div className="grid gap-4">
+          <div className="grid gap-3">
             {research?.destinations.map((d: any, i: number) => (
               <div
-                className={`bg-card rounded-2xl border-2 p-6 transition ${
+                className={`bg-card rounded-2xl border-2 p-5 transition ${
                   d.city === plan.destination?.split(",")[0]
                     ? "border-primary/30 bg-primary/5"
                     : "border-border"
                 }`}
                 key={i}
               >
-                <div className="flex items-start justify-between gap-4 mb-3">
+                <div className="flex items-start justify-between gap-4 mb-2">
                   <div>
                     <h4 className="font-bold text-foreground">
                       {d.city}, {d.country}
                     </h4>
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <p className="text-sm text-muted-foreground mt-0.5">
                       {d.why_fits_budget}
                     </p>
                   </div>
@@ -552,7 +467,7 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
                   <span>{d.best_travel_months}</span>
                 </div>
                 {d.visa_notes && (
-                  <p className="text-xs text-muted-foreground mt-3 italic">
+                  <p className="text-xs text-muted-foreground mt-2 italic">
                     {d.visa_notes}
                   </p>
                 )}
@@ -565,7 +480,7 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
       {/* Transport */}
       {transport && (
         <div className="space-y-4">
-          <h3 className="text-xl font-bold text-foreground">Getting Around</h3>
+          <h3 className="text-lg font-bold text-foreground">Getting Around</h3>
           <div className="space-y-4">
             {(
               [
@@ -588,7 +503,10 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
                 bus: transport.available_options?.buses || [],
               };
               const rawOptions: any[] = [...(rawByMode[key] || [])]
-                .sort((a, b) => (a[fareField[key]] || 0) - (b[fareField[key]] || 0))
+                .sort(
+                  (a, b) =>
+                    (a[fareField[key]] || 0) - (b[fareField[key]] || 0),
+                )
                 .slice(0, 5);
               if (!aiOptions.length && !rawOptions.length) return null;
 
@@ -607,16 +525,14 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
                   }`}
                 >
                   <div
-                    className={`flex items-center gap-3 px-6 py-4 ${
+                    className={`flex items-center gap-3 px-5 py-3 ${
                       isRecommended ? "bg-primary/10" : "bg-secondary/30"
                     }`}
                   >
-                    <span className="text-2xl">{icon}</span>
-                    <span className="text-lg font-bold text-foreground">
-                      {label}
-                    </span>
+                    <span className="text-xl">{icon}</span>
+                    <span className="font-bold text-foreground">{label}</span>
                     {isRecommended && (
-                      <span className="px-3 py-1 bg-green-100/50 text-green-700 text-xs font-bold rounded-full">
+                      <span className="px-2.5 py-0.5 bg-green-100/50 text-green-700 text-xs font-bold rounded-full">
                         ✓ Recommended
                       </span>
                     )}
@@ -625,7 +541,6 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
                     </span>
                   </div>
 
-                  {/* Raw scraped options — always preferred (full detail) */}
                   {rawOptions.length > 0 && (
                     <div className="grid grid-cols-3 gap-3 p-4">
                       {key === "train" &&
@@ -731,7 +646,6 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
                     </div>
                   )}
 
-                  {/* AI-only fallback when no raw data available */}
                   {rawOptions.length === 0 && aiOptions.length > 0 && (
                     <div className="grid grid-cols-3 gap-3 p-4">
                       {aiOptions.map((opt: any, i: number) => (
@@ -783,12 +697,12 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
 
           {transport.airport_transfer?.recommended_mode &&
             transport.airport_transfer.recommended_mode !== "N/A" && (
-              <div className="flex items-center justify-between px-6 py-4 bg-secondary/30 rounded-2xl border border-border">
+              <div className="flex items-center justify-between px-5 py-4 bg-secondary/30 rounded-2xl border border-border">
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                     Airport Transfer
                   </p>
-                  <p className="text-base font-semibold text-foreground mt-1">
+                  <p className="text-base font-semibold text-foreground mt-0.5">
                     {transport.airport_transfer.recommended_mode}
                   </p>
                 </div>
@@ -811,16 +725,14 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
       {/* Accommodation */}
       {accommodation && (
         <div className="space-y-4">
-          <h3 className="text-xl font-bold text-foreground">Where to Stay</h3>
+          <h3 className="text-lg font-bold text-foreground">Where to Stay</h3>
           {accommodation.options?.length > 0 ? (
             <div className="rounded-2xl border-2 border-border bg-card overflow-hidden">
-              <div className="flex items-center gap-3 px-6 py-4 bg-secondary/30">
-                <span className="text-2xl">🏨</span>
-                <span className="text-lg font-bold text-foreground">
-                  Accommodation
-                </span>
+              <div className="flex items-center gap-3 px-5 py-3 bg-secondary/30">
+                <span className="text-xl">🏨</span>
+                <span className="font-bold text-foreground">Accommodation</span>
                 {accommodation.recommended_tier && (
-                  <span className="px-3 py-1 bg-green-100/50 text-green-700 text-xs font-bold rounded-full">
+                  <span className="px-2.5 py-0.5 bg-green-100/50 text-green-700 text-xs font-bold rounded-full">
                     ✓ {accommodation.recommended_tier} recommended
                   </span>
                 )}
@@ -918,28 +830,28 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
 
       {/* Itinerary */}
       {itinerary.length > 0 && (
-        <div className="space-y-6">
-          <h3 className="text-xl font-bold text-foreground">
+        <div className="space-y-5">
+          <h3 className="text-lg font-bold text-foreground">
             Day-by-Day Itinerary
           </h3>
-          <div className="space-y-5">
+          <div className="space-y-4">
             {itinerary.map((day: any) => (
               <div
                 key={day.day}
                 className="bg-card rounded-2xl border border-border overflow-hidden"
               >
-                <div className="bg-gradient-to-r from-primary/10 to-accent/10 px-6 py-4 border-b border-border">
-                  <h4 className="font-bold text-foreground text-lg">
+                <div className="bg-gradient-to-r from-primary/10 to-accent/10 px-5 py-3 border-b border-border">
+                  <h4 className="font-bold text-foreground">
                     Day {day.day}: {day.theme}
                   </h4>
                 </div>
 
-                <div className="p-6 space-y-5">
+                <div className="p-5 space-y-4">
                   <div>
-                    <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-3">
+                    <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-2">
                       🌅 Morning
                     </p>
-                    <div className="space-y-2 text-sm">
+                    <div className="space-y-1.5 text-sm">
                       <div className="flex justify-between">
                         <span className="text-foreground">
                           {day.morning?.activity}
@@ -957,11 +869,11 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
                     </div>
                   </div>
 
-                  <div className="border-t border-border pt-5">
-                    <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-3">
+                  <div className="border-t border-border pt-4">
+                    <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-2">
                       ☀️ Afternoon
                     </p>
-                    <div className="space-y-2 text-sm">
+                    <div className="space-y-1.5 text-sm">
                       <div className="flex justify-between">
                         <span className="text-foreground">
                           {day.afternoon?.activity}
@@ -979,11 +891,11 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
                     </div>
                   </div>
 
-                  <div className="border-t border-border pt-5">
-                    <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-3">
+                  <div className="border-t border-border pt-4">
+                    <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-2">
                       🌙 Evening
                     </p>
-                    <div className="space-y-2 text-sm">
+                    <div className="space-y-1.5 text-sm">
                       <div className="flex justify-between">
                         <span className="text-foreground">
                           {day.evening?.activity}
@@ -1001,12 +913,12 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
                     </div>
                   </div>
 
-                  <div className="border-t border-border pt-5 flex justify-between items-center">
+                  <div className="border-t border-border pt-4 flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">
                       Local transport: {money(day.local_transport, plan)}
                     </span>
                     <div className="text-right">
-                      <p className="text-xs text-muted-foreground mb-1">
+                      <p className="text-xs text-muted-foreground mb-0.5">
                         Day Total
                       </p>
                       <p className="text-lg font-bold text-primary">
@@ -1017,7 +929,7 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
                 </div>
 
                 {day.budget_tip && (
-                  <div className="px-6 py-4 bg-accent/5 border-t border-border text-xs text-muted-foreground">
+                  <div className="px-5 py-3 bg-accent/5 border-t border-border text-xs text-muted-foreground">
                     💡 {day.budget_tip}
                   </div>
                 )}
@@ -1026,11 +938,11 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
           </div>
 
           {plan.itinerary?.money_saving_hacks?.length > 0 && (
-            <div className="bg-accent/5 border border-accent/10 rounded-xl p-6">
-              <p className="font-bold text-foreground mb-3">
+            <div className="bg-accent/5 border border-accent/10 rounded-xl p-5">
+              <p className="font-bold text-foreground mb-2">
                 💰 Money-Saving Hacks
               </p>
-              <ul className="space-y-2">
+              <ul className="space-y-1.5">
                 {(plan.itinerary?.money_saving_hacks as string[]).map(
                   (h, i) => (
                     <li
@@ -1047,11 +959,11 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
           )}
 
           {plan.itinerary?.free_time_suggestions?.length > 0 && (
-            <div className="bg-accent/5 border border-accent/10 rounded-xl p-6">
-              <p className="font-bold text-foreground mb-3">
+            <div className="bg-accent/5 border border-accent/10 rounded-xl p-5">
+              <p className="font-bold text-foreground mb-2">
                 🎯 Free Time Ideas
               </p>
-              <ul className="space-y-2">
+              <ul className="space-y-1.5">
                 {(plan.itinerary?.free_time_suggestions as string[]).map(
                   (s, i) => (
                     <li
@@ -1074,13 +986,11 @@ function PlanResult({ plan }: { plan: TravelPlan }) {
 
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1.5">
       <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
         {label}
       </span>
-      <strong className="text-2xl text-foreground leading-tight">
-        {value}
-      </strong>
+      <strong className="text-xl text-foreground leading-tight">{value}</strong>
     </div>
   );
 }
