@@ -111,12 +111,36 @@ For each day, plan:
 }}
 
 ## Rules
-- Prioritize free or low-cost activities (parks, markets, walking tours, temples).
-- Always include at least one authentic local food experience per day.
-- Keep daily total realistic — don't underestimate street food or transport.
+
+- Prioritize well-known sightseeing attractions, cultural landmarks, historical places, temples, museums, forts, heritage sites, scenic 	 viewpoints, and highly rated tourist experiences FIRST.
+- Only use generic market walks, random local streets, or low-value filler activities if the budget is extremely limited.
+- Every day should include at least one meaningful sightseeing experience.
+- Prefer iconic attractions over generic local exploration.
+- Include authentic local food experiences, but avoid making street food the primary highlight of the day unless requested by the user.
+- Balance budget and experience quality realistically.
+- Prioritize places with strong tourist value, cultural importance, historical significance, or scenic beauty.
+- Use free or low-cost sightseeing spots when possible before suggesting shopping areas or generic market exploration.
+- Museums, temples, forts, beaches, lakes, gardens, palaces, promenades, cultural centers, art galleries, and famous landmarks should receive higher priority than markets or street walks.
+- Keep daily total realistic — include entry fees, transport, and meal costs accurately.
 - Flag if remaining budget is too tight to build a meaningful itinerary.
 - ALL monetary values MUST be in the currency specified by the `currency` field.
 - Use EXACTLY the field names shown above — do NOT append currency codes to field names.
+
+## Activity Selection Priority
+
+Choose activities in this priority order:
+
+1. Famous sightseeing attractions
+2. Historical monuments and forts
+3. Temples and spiritual places
+4. Museums and cultural centers
+5. Nature spots, gardens, lakes, beaches, viewpoints
+6. Guided cultural experiences
+7. Local food exploration
+8. Markets and shopping streets
+9. Generic walking tours (ONLY if no better options fit budget)
+
+- Avoid repetitive filler activities such as “walk around local streets”, “explore nearby market”, or “free time in local area” unless they are genuinely famous tourist attractions.
 """
 
 
