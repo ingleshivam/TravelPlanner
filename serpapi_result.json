@@ -1,0 +1,35 @@
+{
+    "search_metadata": {
+        "id": "6a2f241a12eb14e0062cc44b",
+        "status": "Success",
+        "json_endpoint": "https://serpapi.com/searches/SlCQWm9x1z4rZ2GasmbeVw/6a2f241a12eb14e0062cc44b.json",
+        "created_at": "2026-06-14 21:58:50 UTC",
+        "processed_at": "2026-06-14 21:58:50 UTC",
+        "total_time_taken": 4.02
+    },
+    "search_parameters": {
+        "engine": "google_ai_mode",
+        "q": "Find me trains from Pune to Parbhani.",
+        "device": "desktop"
+    },
+    "text_blocks": [
+        {
+            "type": "code_block",
+            "language": "json",
+            "code": "[\n\t{\n\t\t\"train_number\": \"17613\",\n\t\t\"train_name\": \"Panvel - Hazur Sahib Nanded Express\",\n\t\t\"train_departure_time_from_source_station\": \"19:20\",\n\t\t\"train_arrival_time_at_destination_station\": \"06:50\",\n\t\t\"total_journey_time\": \"11h 30m\",\n\t\t\"fare\": {\n\t\t\t\"Sleeper (SL)\": \"₹310\",\n\t\t\t\"AC 3 Tier (3A)\": \"₹810\",\n\t\t\t\"AC 2 Tier (2A)\": \"₹1145\"\n\t\t}\n\t},\n\t{\n\t\t\"train_number\": \"17629\",\n\t\t\"train_name\": \"Hadapsar - Hazur Sahib Nanded Express\",\n\t\t\"train_departure_time_from_source_station\": \"21:50\",\n\t\t\"train_arrival_time_at_destination_station\": \"08:20\",\n\t\t\"total_journey_time\": \"10h 30m\",\n\t\t\"fare\": {\n\t\t\t\"Sleeper (SL)\": \"₹360\",\n\t\t\t\"AC 3 Tier (3A)\": \"₹955\",\n\t\t\t\"AC 2 Tier (2A)\": \"₹1345\"\n\t\t}\n\t},\n\t{\n\t\t\"train_number\": \"11405\",\n\t\t\"train_name\": \"Pune - Amravati Express\",\n\t\t\"train_departure_time_from_source_station\": \"22:45\",\n\t\t\"train_arrival_time_at_destination_station\": \"09:38\",\n\t\t\"total_journey_time\": \"10h 53m\",\n\t\t\"fare\": {\n\t\t\t\"Sleeper (SL)\": \"₹310\",\n\t\t\t\"AC 3 Tier (3A)\": \"₹810\",\n\t\t\t\"AC 2 Tier (2A)\": \"₹1145\",\n\t\t\t\"First Class AC (1A)\": \"₹1905\"\n\t\t}\n\t}\n]\n"
+        },
+        {
+            "type": "paragraph",
+            "snippet": "If you want, I can help you:"
+        },
+        {
+            "type": "list",
+            "list": [
+                {"snippet": "Check seat availability for specific dates"},
+                {"snippet": "Find alternative routes or buses if these times don't suit you"},
+                {"snippet": "Get the live running status of any of these trains"}
+            ]
+        }
+    ],
+    "reconstructed_markdown": "```json\n[\n\t{\n\t\t\"train_number\": \"17613\",\n\t\t\"train_name\": \"Panvel - Hazur Sahib Nanded Express\",\n\t\t\"train_departure_time_from_source_station\": \"19:20\",\n\t\t\"train_arrival_time_at_destination_station\": \"06:50\",\n\t\t\"total_journey_time\": \"11h 30m\",\n\t\t\"fare\": {\n\t\t\t\"Sleeper (SL)\": \"₹310\",\n\t\t\t\"AC 3 Tier (3A)\": \"₹810\",\n\t\t\t\"AC 2 Tier (2A)\": \"₹1145\"\n\t\t}\n\t},\n\t{\n\t\t\"train_number\": \"17629\",\n\t\t\"train_name\": \"Hadapsar - Hazur Sahib Nanded Express\",\n\t\t\"train_departure_time_from_source_station\": \"21:50\",\n\t\t\"train_arrival_time_at_destination_station\": \"08:20\",\n\t\t\"total_journey_time\": \"10h 30m\",\n\t\t\"fare\": {\n\t\t\t\"Sleeper (SL)\": \"₹360\",\n\t\t\t\"AC 3 Tier (3A)\": \"₹955\",\n\t\t\t\"AC 2 Tier (2A)\": \"₹1345\"\n\t\t}\n\t},\n\t{\n\t\t\"train_number\": \"11405\",\n\t\t\"train_name\": \"Pune - Amravati Express\",\n\t\t\"train_departure_time_from_source_station\": \"22:45\",\n\t\t\"train_arrival_time_at_destination_station\": \"09:38\",\n\t\t\"total_journey_time\": \"10h 53m\",\n\t\t\"fare\": {\n\t\t\t\"Sleeper (SL)\": \"₹310\",\n\t\t\t\"AC 3 Tier (3A)\": \"₹810\",\n\t\t\t\"AC 2 Tier (2A)\": \"₹1145\",\n\t\t\t\"First Class AC (1A)\": \"₹1905\"\n\t\t}\n\t}\n]\n```"
+}
