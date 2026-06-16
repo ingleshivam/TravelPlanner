@@ -15,6 +15,7 @@ from schemas import (
     AccommodationPlanOutput,
     ItineraryOutput,
     BudgetTrackerOutput,
+    MasterPlanOutput,
 )
 from prompts import (
     SUPERVISOR_SYSTEM_PROMPT,
@@ -23,6 +24,7 @@ from prompts import (
     ACCOMMODATION_AGENT_PROMPT,
     ITINERARY_AGENT_PROMPT,
     BUDGET_TRACKER_PROMPT,
+    MASTER_PLANNER_PROMPT,
 )
 
 if not os.getenv("GROQ_API_KEY"):
@@ -89,3 +91,4 @@ transport_chain     = _structured_chain(TRANSPORT_AGENT_PROMPT,         Transpor
 accommodation_chain = _structured_chain(ACCOMMODATION_AGENT_PROMPT,     AccommodationPlanOutput)
 itinerary_chain     = _structured_chain(ITINERARY_AGENT_PROMPT,         ItineraryOutput)
 budget_chain        = _structured_chain(BUDGET_TRACKER_PROMPT,          BudgetTrackerOutput)
+master_chain        = _structured_chain(MASTER_PLANNER_PROMPT,          MasterPlanOutput)

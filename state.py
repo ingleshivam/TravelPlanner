@@ -22,6 +22,7 @@ class TravelPlanState(TypedDict):
     accommodation_plan: Optional[dict]
     itinerary: Optional[dict]
     budget_summary: Optional[dict]
+    master_plan: Optional[dict]
 
     # ── Raw Tavily search results (per agent) ────────────
     raw_search_destination: Optional[str]

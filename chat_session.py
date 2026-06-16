@@ -1,4 +1,5 @@
-from datetime import date
+import json
+from datetime import date, timedelta
 from typing import Dict, List, Optional
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -6,6 +7,22 @@ from pydantic import BaseModel
 
 _REQUIRED = ["origin", "budget", "currency", "currency_symbol", "start_date", "num_days", "num_travelers", "travel_style"]
 _sessions: Dict[str, dict] = {}
+
+DEFAULT_ALLOCATION = {
+    "transport": 35,
+    "accommodation": 35,
+    "food": 15,
+    "activities": 10,
+    "misc": 5,
+}
+
+_ALLOCATION_LABELS = {
+    "transport": "Transport (flights / trains / buses)",
+    "accommodation": "Accommodation",
+    "food": "Food & dining",
+    "activities": "Activities & sightseeing",
+    "misc": "Miscellaneous buffer",
+}
 
 
 class _ExtractedParams(BaseModel):
@@ -19,6 +36,14 @@ class _ExtractedParams(BaseModel):
     num_travelers: Optional[int] = None
     travel_style: Optional[str] = None
     interests: Optional[List[str]] = None
+
+
+class _BudgetAllocation(BaseModel):
+    transport: int = DEFAULT_ALLOCATION["transport"]
+    accommodation: int = DEFAULT_ALLOCATION["accommodation"]
+    food: int = DEFAULT_ALLOCATION["food"]
+    activities: int = DEFAULT_ALLOCATION["activities"]
+    misc: int = DEFAULT_ALLOCATION["misc"]
 
 
 def _today() -> str:
@@ -35,8 +60,8 @@ def _extract_prompt() -> str:
         "- currency must be an ISO 4217 code (e.g. INR, USD, EUR) and currency_symbol its symbol (e.g. ₹, $, €), "
         "exactly as stated by the user. Do not guess one from the other or from the origin/destination.\n"
         "- Extract ALL values mentioned anywhere in the conversation, not just the latest message.\n"
-        'Schema: {{"budget": null, "currency": null, "currency_symbol": null, "origin": null, "destination": null, '
-        '"start_date": null, "num_days": null, "num_travelers": null, "travel_style": null, "interests": null}}'
+        'Schema: {"budget": null, "currency": null, "currency_symbol": null, "origin": null, "destination": null, '
+        '"start_date": null, "num_days": null, "num_travelers": null, "travel_style": null, "interests": null}'
     )
 
 
@@ -48,13 +73,32 @@ def _followup_prompt() -> str:
     )
 
 
+def _budget_alloc_prompt(default: dict) -> str:
+    return (
+        "The user was shown a default budget allocation and asked if they want to change it. "
+        f"Default: {json.dumps(default)}. "
+        "If the user confirms (yes, ok, looks good, proceed, sure, etc.) return the default values. "
+        "If they request changes, adjust only the mentioned categories and redistribute the remaining "
+        "percentage so all five values still sum to 100. "
+        'Return JSON: {"transport": int, "accommodation": int, "food": int, "activities": int, "misc": int}'
+    )
+
+
 def _history_text(history: list) -> str:
     return "\n".join(f"{m['role'].upper()}: {m['content']}" for m in history[-10:])
 
 
+
+# ── Public API ─────────────────────────────────────────────────────────────────
+
 def get_or_create(session_id: str) -> dict:
     if session_id not in _sessions:
-        _sessions[session_id] = {"history": [], "params": {}}
+        _sessions[session_id] = {
+            "stage": "info_collection",
+            "history": [],
+            "params": {},
+            "budget_allocation": None,
+        }
     return _sessions[session_id]
 
 
@@ -79,7 +123,6 @@ def extract_params(history: list) -> dict:
 
 def missing_fields(params: dict) -> list:
     missing = [f for f in _REQUIRED if not params.get(f)]
-    # Treat a past start_date as missing so the user is asked for a future date
     if "start_date" not in missing and params.get("start_date"):
         try:
             if date.fromisoformat(params["start_date"]) < date.today():
@@ -103,3 +146,76 @@ def follow_up_question(history: list, missing: list) -> str:
         }).content
     except Exception:
         return f"Could you share your {missing[0].replace('_', ' ')}?"
+
+
+def budget_allocation_message(params: dict, alloc: dict, amounts: dict) -> str:
+    sym = params.get("currency_symbol", "")
+    total = float(params["budget"])
+    lines = [
+        f"I have everything I need! Here's the default budget split for your "
+        f"{sym}{total:,.0f} {params.get('currency', '')} trip:",
+        "",
+    ]
+    for k, pct in alloc.items():
+        lines.append(f"• {_ALLOCATION_LABELS.get(k, k.title())}: {pct}%  ({sym}{amounts[k]:,.0f})")
+    lines += ["", "Proceed with this allocation, or tell me what you'd like to adjust."]
+    return "\n".join(lines)
+
+
+def extract_budget_allocation(history: list, default_alloc: dict) -> dict:
+    from agents import llm
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", _budget_alloc_prompt(default_alloc)),
+        ("human", "{conv}"),
+    ])
+    chain = prompt | llm.with_structured_output(_BudgetAllocation, method="json_mode")
+    try:
+        result = chain.invoke({"conv": _history_text(history)})
+        return result.model_dump()
+    except Exception as e:
+        print(f"[chat_session] extract_budget_allocation failed: {e}")
+        return default_alloc.copy()
+
+
+def process_travel_plan(params: dict, budget_allocation: dict) -> dict:
+    """Invokes the LangGraph pipeline: SerpAPI → save txt → master LLM → plan."""
+    from graph import travel_planner
+
+    start = date.fromisoformat(params["start_date"])
+    end_date = (start + timedelta(days=int(params["num_days"]))).isoformat()
+
+    initial_state = {
+        "user_budget": float(params["budget"]),
+        "currency": params["currency"],
+        "currency_symbol": params.get("currency_symbol", ""),
+        "origin": params["origin"],
+        "destination": params.get("destination"),
+        "start_date": params["start_date"],
+        "end_date": end_date,
+        "num_days": int(params["num_days"]),
+        "num_travelers": int(params["num_travelers"]),
+        "travel_style": params["travel_style"],
+        "interests": params.get("interests") or [],
+        "budget_allocation": budget_allocation,
+        "live_trip_data": None,
+        "destination_research": None,
+        "transport_plan": None,
+        "accommodation_plan": None,
+        "itinerary": None,
+        "budget_summary": None,
+        "master_plan": None,
+        "raw_search_destination": None,
+        "raw_search_transport": None,
+        "raw_search_accommodation": None,
+        "raw_search_itinerary": None,
+        "budget_overrun": False,
+        "overrun_amount": 0.0,
+        "budget_constraint_message": None,
+        "reroute_count": 0,
+        "step_count": 0,
+        "messages": [],
+        "final_plan_ready": False,
+    }
+
+    result = travel_planner.invoke(initial_state)
+    return result.get("master_plan") or {}
