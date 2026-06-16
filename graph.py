@@ -1,26 +1,17 @@
 from langgraph.graph import StateGraph, END
 from state import TravelPlanState
 from nodes import (
-    currency_inference_node,
     supervisor_node,
-    destination_researcher_node,
-    transport_agent_node,
-    accommodation_agent_node,
-    itinerary_agent_node,
+    live_data_research_node,
+    trip_planner_node,
     budget_tracker_node,
 )
 
 def route_from_supervisor(state: TravelPlanState) -> str:
-    destination_known = bool(state.get("destination"))
-
-    if not destination_known and not state.get("destination_research"):
-        return "destination_researcher"
+    if not state.get("live_trip_data"):
+        return "live_data_research"
     if not state.get("transport_plan"):
-        return "transport_agent"
-    if not state.get("accommodation_plan"):
-        return "accommodation_agent"
-    if not state.get("itinerary"):
-        return "itinerary_agent"
+        return "trip_planner"
     if not state.get("budget_summary"):
         return "budget_tracker"
 
@@ -31,35 +22,27 @@ def route_from_supervisor(state: TravelPlanState) -> str:
 def build_graph() -> StateGraph:
     graph = StateGraph(TravelPlanState)
 
-    graph.add_node("currency_inference",     currency_inference_node)
-    graph.add_node("supervisor",             supervisor_node)
-    graph.add_node("destination_researcher", destination_researcher_node)
-    graph.add_node("transport_agent",        transport_agent_node)
-    graph.add_node("accommodation_agent",    accommodation_agent_node)
-    graph.add_node("itinerary_agent",        itinerary_agent_node)
-    graph.add_node("budget_tracker",         budget_tracker_node)
+    graph.add_node("supervisor",           supervisor_node)
+    graph.add_node("live_data_research",   live_data_research_node)
+    graph.add_node("trip_planner",         trip_planner_node)
+    graph.add_node("budget_tracker",       budget_tracker_node)
 
-    graph.set_entry_point("currency_inference")
-    graph.add_edge("currency_inference", "supervisor")
+    graph.set_entry_point("supervisor")
 
     graph.add_conditional_edges(
         "supervisor",
         route_from_supervisor,
         {
-            "destination_researcher": "destination_researcher",
-            "transport_agent":        "transport_agent",
-            "accommodation_agent":    "accommodation_agent",
-            "itinerary_agent":        "itinerary_agent",
-            "budget_tracker":         "budget_tracker",
-            "finish":                 END,
+            "live_data_research": "live_data_research",
+            "trip_planner":       "trip_planner",
+            "budget_tracker":     "budget_tracker",
+            "finish":             END,
         }
     )
 
     for agent in [
-        "destination_researcher",
-        "transport_agent",
-        "accommodation_agent",
-        "itinerary_agent",
+        "live_data_research",
+        "trip_planner",
     ]:
         graph.add_edge(agent, "supervisor")
 

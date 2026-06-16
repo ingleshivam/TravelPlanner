@@ -16,6 +16,7 @@ class TravelPlanState(TypedDict):
     budget_allocation: Dict[str, float]
 
     # ── Agent outputs ────────────────────────────────────
+    live_trip_data: Optional[dict]
     destination_research: Optional[dict]
     transport_plan: Optional[dict]
     accommodation_plan: Optional[dict]

@@ -4,12 +4,14 @@ from typing import Dict, List, Optional
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel
 
-_REQUIRED = ["origin", "budget", "start_date", "num_days", "num_travelers", "travel_style"]
+_REQUIRED = ["origin", "budget", "currency", "currency_symbol", "start_date", "num_days", "num_travelers", "travel_style"]
 _sessions: Dict[str, dict] = {}
 
 
 class _ExtractedParams(BaseModel):
     budget: Optional[float] = None
+    currency: Optional[str] = None
+    currency_symbol: Optional[str] = None
     origin: Optional[str] = None
     destination: Optional[str] = None
     start_date: Optional[str] = None
@@ -30,9 +32,11 @@ def _extract_prompt() -> str:
         "- If the user corrects a value later in the conversation, use the latest value.\n"
         "- Set start_date to null if the date is in the past (before today).\n"
         "- Map styles: budget/backpacker→budget-backpacker, mid/moderate→mid-range, comfort/luxury→comfort-budget.\n"
+        "- currency must be an ISO 4217 code (e.g. INR, USD, EUR) and currency_symbol its symbol (e.g. ₹, $, €), "
+        "exactly as stated by the user. Do not guess one from the other or from the origin/destination.\n"
         "- Extract ALL values mentioned anywhere in the conversation, not just the latest message.\n"
-        'Schema: {{"budget": null, "origin": null, "destination": null, "start_date": null, '
-        '"num_days": null, "num_travelers": null, "travel_style": null, "interests": null}}'
+        'Schema: {{"budget": null, "currency": null, "currency_symbol": null, "origin": null, "destination": null, '
+        '"start_date": null, "num_days": null, "num_travelers": null, "travel_style": null, "interests": null}}'
     )
 
 

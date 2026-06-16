@@ -7,8 +7,8 @@ load_dotenv()
 
 initial_state = {
     "user_budget": 1000.0,
-    "currency": "",         
-    "currency_symbol": "",  
+    "currency": "INR",
+    "currency_symbol": "₹",
     "origin": "Pune, India",
     "destination": "Parbhani, India",            
     "start_date": "2025-05-26",
@@ -25,6 +25,7 @@ initial_state = {
         "misc": 5,
     },
 
+    "live_trip_data": None,
     "destination_research": None,
     "transport_plan": None,
     "accommodation_plan": None,

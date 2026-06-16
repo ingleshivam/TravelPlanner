@@ -64,7 +64,11 @@
 
 # print("TRAIN RESULTS:", response.choices[0].message.content)
 
+import os
 import serpapi
+from dotenv import load_dotenv
+
+load_dotenv()
 
 prompt = """
 Find me trains from Pune to Parbhani.
@@ -83,7 +87,7 @@ Return the result in JSON structure.
 """
 
 
-client = serpapi.Client(api_key="3418442afd703f778042ddcb079fba36936897d5c525a0c25be6c6d112aa2d64")
+client = serpapi.Client(api_key=os.getenv("SERPAPI_API_KEY"))
 results = client.search({
   "engine": "google_ai_mode",
   "q": prompt

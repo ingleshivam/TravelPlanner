@@ -37,6 +37,8 @@ class BudgetAllocation(BaseModel):
 
 class TravelPlanRequest(BaseModel):
     user_budget: float = Field(gt=0)
+    currency: str = Field(min_length=1, description="ISO 4217 currency code, e.g. INR, USD.")
+    currency_symbol: str = Field(min_length=1, description="Currency symbol, e.g. ₹, $.")
     origin: str = Field(min_length=2)
     destination: Optional[str] = Field(default=None)
     start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
@@ -110,8 +112,8 @@ def health() -> Dict[str, str]:
 async def create_travel_plan(request: TravelPlanRequest) -> Dict:
     initial_state = {
         "user_budget": request.user_budget,
-        "currency": "",
-        "currency_symbol": "",
+        "currency": request.currency,
+        "currency_symbol": request.currency_symbol,
         "origin": request.origin,
         "destination": request.destination,
         "start_date": request.start_date,
@@ -121,6 +123,7 @@ async def create_travel_plan(request: TravelPlanRequest) -> Dict:
         "travel_style": request.travel_style,
         "interests": request.interests,
         "budget_allocation": request.budget_allocation.model_dump(),
+        "live_trip_data": None,
         "destination_research": None,
         "transport_plan": None,
         "accommodation_plan": None,
@@ -193,8 +196,8 @@ async def chat(request: ChatRequest) -> Dict:
 
     initial_state = {
         "user_budget": params["budget"],
-        "currency": "",
-        "currency_symbol": "",
+        "currency": params["currency"],
+        "currency_symbol": params["currency_symbol"],
         "origin": params["origin"],
         "destination": params.get("destination") or None,
         "start_date": params["start_date"],
@@ -204,6 +207,7 @@ async def chat(request: ChatRequest) -> Dict:
         "travel_style": params["travel_style"],
         "interests": params.get("interests") or [],
         "budget_allocation": {"transport": 35, "accommodation": 35, "food": 15, "activities": 10, "misc": 5},
+        "live_trip_data": None,
         "destination_research": None,
         "transport_plan": None,
         "accommodation_plan": None,
