@@ -77,14 +77,38 @@ def _get_serpapi() -> serpapi.Client:
 
 
 def _extract_ai_mode_json(results) -> Optional[dict]:
-    """Pull the JSON code block out of a google_ai_mode SerpAPI response."""
+    """Pull the JSON code block out of a google_ai_mode SerpAPI response.
+
+    SerpAPI truncates long responses mid-code-block and continues the content
+    as subsequent paragraph blocks. We stitch them together before parsing.
+    """
     try:
         text_blocks = results.get("text_blocks") or []
-        code_block = next(
-            (b.get("code") for b in text_blocks if b.get("type") == "code_block" and b.get("language") == "json"),
-            None,
-        )
-        return json.loads(code_block) if code_block else None
+
+        json_block_idx = None
+        code = None
+        for i, b in enumerate(text_blocks):
+            if b.get("type") == "code_block" and b.get("language") == "json":
+                json_block_idx = i
+                code = b.get("code", "")
+                break
+
+        if code is None:
+            return None
+
+        try:
+            return json.loads(code)
+        except json.JSONDecodeError:
+            pass
+
+        # Truncated — stitch with subsequent paragraph snippets
+        for b in text_blocks[json_block_idx + 1:]:
+            if b.get("type") == "paragraph":
+                code += b.get("snippet", "")
+            elif b.get("type") == "code_block":
+                break
+
+        return json.loads(code)
     except Exception as e:
         print(f"[ai-mode] failed to parse JSON block: {e}")
         return None
@@ -318,10 +342,11 @@ def search_live_trip_data(
 
     try:
         results = _get_serpapi().search({"engine": "google_ai_mode", "q": prompt})
-        
+        results = dict(results)
+
         with open("serpapi_result.txt", "w", encoding="utf-8") as f:
             json.dump(results, f, indent=2)
-            
+
         data = _extract_ai_mode_json(results)
         if data is None:
             print("[live-trip-data] no JSON block found in AI Mode response")

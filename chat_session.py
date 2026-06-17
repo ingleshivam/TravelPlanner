@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel
 
-_REQUIRED = ["origin", "budget", "currency", "currency_symbol", "start_date", "num_days", "num_travelers", "travel_style"]
+_REQUIRED = ["origin", "budget", "start_date", "num_days", "num_travelers", "travel_style"]
 _sessions: Dict[str, dict] = {}
 
 DEFAULT_ALLOCATION = {
@@ -57,11 +57,12 @@ def _extract_prompt() -> str:
         "- If the user corrects a value later in the conversation, use the latest value.\n"
         "- Set start_date to null if the date is in the past (before today).\n"
         "- Map styles: budget/backpacker→budget-backpacker, mid/moderate→mid-range, comfort/luxury→comfort-budget.\n"
-        "- currency must be an ISO 4217 code (e.g. INR, USD, EUR) and currency_symbol its symbol (e.g. ₹, $, €), "
-        "exactly as stated by the user. Do not guess one from the other or from the origin/destination.\n"
+        "- Infer currency and currency_symbol from the origin city/country if not stated "
+        "(e.g. Pune/Mumbai/Delhi → INR/₹, New York/LA → USD/$, London → GBP/£, Paris → EUR/€). "
+        "currency must be an ISO 4217 code; currency_symbol its unicode symbol.\n"
         "- Extract ALL values mentioned anywhere in the conversation, not just the latest message.\n"
-        'Schema: {"budget": null, "currency": null, "currency_symbol": null, "origin": null, "destination": null, '
-        '"start_date": null, "num_days": null, "num_travelers": null, "travel_style": null, "interests": null}'
+        'Schema: {{"budget": null, "currency": null, "currency_symbol": null, "origin": null, "destination": null, '
+        '"start_date": null, "num_days": null, "num_travelers": null, "travel_style": null, "interests": null}}'
     )
 
 
@@ -74,13 +75,14 @@ def _followup_prompt() -> str:
 
 
 def _budget_alloc_prompt(default: dict) -> str:
+    default_escaped = json.dumps(default).replace("{", "{{").replace("}", "}}")
     return (
         "The user was shown a default budget allocation and asked if they want to change it. "
-        f"Default: {json.dumps(default)}. "
+        f"Default: {default_escaped}. "
         "If the user confirms (yes, ok, looks good, proceed, sure, etc.) return the default values. "
         "If they request changes, adjust only the mentioned categories and redistribute the remaining "
         "percentage so all five values still sum to 100. "
-        'Return JSON: {"transport": int, "accommodation": int, "food": int, "activities": int, "misc": int}'
+        'Return JSON: {{"transport": int, "accommodation": int, "food": int, "activities": int, "misc": int}}'
     )
 
 
