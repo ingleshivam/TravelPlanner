@@ -1,0 +1,18 @@
+User - Plan a 5 days budget teip from Pune to Bhubaneshwar for 1 person budget is
+40k.
+
+AI - Could you let me know the intended start date for your 5-day trip?
+
+User - Start date is 20th June 2026
+
+AI - I have everything I need! Here's the default budget split for your ₹40,000 INR trip:
+• Transport (flights / trains / buses): 35% (₹14,000)
+• Accommodation: 35% (₹14,000)
+• Food & dining: 15% (₹6,000)
+• Activities & sightseeing: 10% (₹4,000)
+• Miscellaneous buffer: 5% (₹2,000)
+Proceed with this allocation, or tell me what you'd like to adjust
+
+User - Increase the transport budget to 40%.
+
+AI - Here's your complete 5-day travel plan to Bhubaneshwar!

@@ -14,6 +14,9 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { MOCK_REPLIES, MOCK_PLAN } from "@/lib/mock-data";
+
+const MOCK_MODE = process.env.NEXT_PUBLIC_MOCK_MODE === "true";
 
 // ── Types matching master_plan returned by SerpAPI Google AI Mode ─────────────
 
@@ -152,6 +155,7 @@ export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mockStep, setMockStep] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -181,6 +185,7 @@ export default function Home() {
     setSessionId(sid);
     setMessages([]);
     setInput("");
+    setMockStep(0);
   }
 
   async function sendMessage(text: string) {
@@ -193,6 +198,22 @@ export default function Home() {
     setMessages((prev) => [...prev, userMsg, thinkingMsg]);
     setInput("");
     setLoading(true);
+
+    if (MOCK_MODE) {
+      await new Promise((r) => setTimeout(r, 800));
+      const step = Math.min(mockStep, MOCK_REPLIES.length - 1);
+      const mock = MOCK_REPLIES[step];
+      const assistantMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: mock.reply,
+        plan: mock.stage === "complete" ? MOCK_PLAN : undefined,
+      };
+      setMessages((prev) => [...prev.slice(0, -1), assistantMsg]);
+      setMockStep((s) => s + 1);
+      setLoading(false);
+      return;
+    }
 
     try {
       const res = await fetch(`${API_URL}/api/chat`, {
