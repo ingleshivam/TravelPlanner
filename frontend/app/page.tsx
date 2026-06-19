@@ -74,7 +74,12 @@ type AccommodationOption = {
 };
 
 type Meal = { place_type: string; recommended_dish: string; cost: number };
-type Activity = { activity: string; location: string; entry_fee: number; notes: string };
+type Activity = {
+  activity: string;
+  location: string;
+  entry_fee: number;
+  notes: string;
+};
 
 type Day = {
   day: number;
@@ -103,7 +108,11 @@ type MasterPlan = {
     recommended_operator: string;
     recommended_cost_per_person: number;
     recommended_total_cost: number;
-    local_transport: { daily_cost_per_person: number; total_local_transport: number; recommended_options: string[] };
+    local_transport: {
+      daily_cost_per_person: number;
+      total_local_transport: number;
+      recommended_options: string[];
+    };
     airport_transfer: { cost: number; recommended_mode: string; notes: string };
     total_transport_cost: number;
     within_budget: boolean;
@@ -156,7 +165,7 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [mockStep, setMockStep] = useState(0);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -169,7 +178,12 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
+    if (isNearBottom) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }
   }, [messages]);
 
   useEffect(() => {
@@ -192,8 +206,17 @@ export default function Home() {
     const trimmed = text.trim();
     if (!trimmed || loading || !sessionId) return;
 
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: trimmed };
-    const thinkingMsg: ChatMessage = { id: "thinking", role: "assistant", content: "", isLoading: true };
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: trimmed,
+    };
+    const thinkingMsg: ChatMessage = {
+      id: "thinking",
+      role: "assistant",
+      content: "",
+      isLoading: true,
+    };
 
     setMessages((prev) => [...prev, userMsg, thinkingMsg]);
     setInput("");
@@ -255,7 +278,9 @@ export default function Home() {
       <header className="flex items-center justify-between px-5 py-3 border-b border-border bg-card shrink-0">
         <div className="flex items-center gap-2.5">
           <PlaneTakeoff size={20} className="text-primary" />
-          <span className="font-semibold text-foreground">AI Travel Planner</span>
+          <span className="font-semibold text-foreground">
+            AI Travel Planner
+          </span>
         </div>
         <button
           onClick={startNewChat}
@@ -266,7 +291,7 @@ export default function Home() {
         </button>
       </header>
 
-      <main className="flex-1 overflow-y-auto">
+      <main ref={scrollContainerRef} className="flex-1 overflow-y-scroll">
         {messages.length === 0 ? (
           <WelcomeScreen onSelect={sendMessage} />
         ) : (
@@ -274,7 +299,6 @@ export default function Home() {
             {messages.map((msg) => (
               <MessageBubble key={msg.id} msg={msg} />
             ))}
-            <div ref={bottomRef} />
           </div>
         )}
       </main>
@@ -314,14 +338,24 @@ export default function Home() {
 
 const MD_COMPONENTS = {
   p: ({ children }: any) => <p className="leading-relaxed my-1">{children}</p>,
-  h2: ({ children }: any) => <h2 className="text-lg font-bold mt-3 mb-1">{children}</h2>,
-  h3: ({ children }: any) => <h3 className="text-base font-bold mt-2 mb-1">{children}</h3>,
-  strong: ({ children }: any) => <strong className="font-semibold text-foreground">{children}</strong>,
-  ul: ({ children }: any) => <ul className="list-disc list-inside space-y-1 my-1">{children}</ul>,
+  h2: ({ children }: any) => (
+    <h2 className="text-lg font-bold mt-3 mb-1">{children}</h2>
+  ),
+  h3: ({ children }: any) => (
+    <h3 className="text-base font-bold mt-2 mb-1">{children}</h3>
+  ),
+  strong: ({ children }: any) => (
+    <strong className="font-semibold text-foreground">{children}</strong>
+  ),
+  ul: ({ children }: any) => (
+    <ul className="list-disc list-inside space-y-1 my-1">{children}</ul>
+  ),
   li: ({ children }: any) => <li className="leading-relaxed">{children}</li>,
   hr: () => <hr className="border-border my-3" />,
   code: ({ children }: any) => (
-    <code className="text-xs bg-secondary px-1 py-0.5 rounded font-mono">{children}</code>
+    <code className="text-xs bg-secondary px-1 py-0.5 rounded font-mono">
+      {children}
+    </code>
   ),
 };
 
@@ -335,10 +369,12 @@ function WelcomeScreen({ onSelect }: { onSelect: (p: string) => void }) {
           <PlaneTakeoff size={32} className="text-primary" />
         </div>
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">AI Travel Planner</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            AI Travel Planner
+          </h1>
           <p className="text-muted-foreground max-w-md text-sm leading-relaxed">
-            Tell me where you&apos;d like to go. I&apos;ll find transport, accommodation,
-            and build a day-by-day itinerary within your budget.
+            Tell me where you&apos;d like to go. I&apos;ll find transport,
+            accommodation, and build a day-by-day itinerary within your budget.
           </p>
         </div>
       </div>
@@ -382,7 +418,10 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
           <>
             {msg.content && (
               <div className="text-sm text-foreground leading-relaxed space-y-2">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={MD_COMPONENTS}
+                >
                   {msg.content}
                 </ReactMarkdown>
               </div>
@@ -397,16 +436,51 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
   );
 }
 
+const PLANNING_STEPS = [
+  { label: "Searching transport options…", duration: 8000 },
+  { label: "Finding accommodation…", duration: 8000 },
+  { label: "Building your itinerary…", duration: 12000 },
+  { label: "Calculating budget breakdown…", duration: 8000 },
+  { label: "Putting it all together…", duration: Infinity },
+];
+
 function ThinkingDots() {
+  const [stepIdx, setStepIdx] = useState(0);
+
+  useEffect(() => {
+    if (stepIdx >= PLANNING_STEPS.length - 1) return;
+    const timer = setTimeout(
+      () => setStepIdx((i) => i + 1),
+      PLANNING_STEPS[stepIdx].duration
+    );
+    return () => clearTimeout(timer);
+  }, [stepIdx]);
+
   return (
-    <div className="flex items-center gap-1.5 py-2">
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce"
-          style={{ animationDelay: `${i * 0.15}s` }}
-        />
-      ))}
+    <div className="space-y-2 py-1">
+      {PLANNING_STEPS.slice(0, stepIdx + 1).map((step, i) => {
+        const isActive = i === stepIdx;
+        return (
+          <div key={i} className="flex items-center gap-2.5 text-sm">
+            {isActive ? (
+              <span className="flex gap-1">
+                {[0, 1, 2].map((j) => (
+                  <span
+                    key={j}
+                    className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce"
+                    style={{ animationDelay: `${j * 0.15}s` }}
+                  />
+                ))}
+              </span>
+            ) : (
+              <span className="text-green-600 text-xs">✓</span>
+            )}
+            <span className={isActive ? "text-foreground" : "text-muted-foreground line-through"}>
+              {step.label}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -421,12 +495,26 @@ function StatusBadge({ status }: { status?: string }) {
   if (!status) return null;
   const cfg =
     status === "WITHIN_BUDGET"
-      ? { cls: "bg-green-100/50 text-green-700", icon: <CheckCircle size={12} />, label: "Within Budget" }
+      ? {
+          cls: "bg-green-100/50 text-green-700",
+          icon: <CheckCircle size={12} />,
+          label: "Within Budget",
+        }
       : status === "TIGHT_FIT"
-      ? { cls: "bg-yellow-100/50 text-yellow-700", icon: <AlertCircle size={12} />, label: "Tight Fit" }
-      : { cls: "bg-red-100/50 text-red-700", icon: <AlertCircle size={12} />, label: "Over Budget" };
+        ? {
+            cls: "bg-yellow-100/50 text-yellow-700",
+            icon: <AlertCircle size={12} />,
+            label: "Tight Fit",
+          }
+        : {
+            cls: "bg-red-100/50 text-red-700",
+            icon: <AlertCircle size={12} />,
+            label: "Over Budget",
+          };
   return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${cfg.cls}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${cfg.cls}`}
+    >
       {cfg.icon} {cfg.label}
     </span>
   );
@@ -448,21 +536,36 @@ function PlanResult({ plan }: { plan: MasterPlan }) {
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h2 className="text-2xl font-bold text-foreground">
-                {ov.destination}{ov.country ? `, ${ov.country}` : ""}
+                {ov.destination}
+                {ov.country ? `, ${ov.country}` : ""}
               </h2>
-              <p className="text-sm text-muted-foreground mt-0.5">from {ov.origin}</p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                from {ov.origin}
+              </p>
             </div>
             <StatusBadge status={plan.budget_summary?.status} />
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5">
-            <OverviewChip icon={<Calendar size={14} />} label="Dates"
-              value={`${ov.travel_dates?.start} → ${ov.travel_dates?.end}`} />
-            <OverviewChip icon={<Calendar size={14} />} label="Duration"
-              value={`${ov.travel_dates?.num_days} days`} />
-            <OverviewChip icon={<Users size={14} />} label="Travelers"
-              value={`${ov.num_travelers} person${ov.num_travelers > 1 ? "s" : ""}`} />
-            <OverviewChip icon={<Wallet size={14} />} label="Budget"
-              value={f(ov.total_budget)} />
+            <OverviewChip
+              icon={<Calendar size={14} />}
+              label="Dates"
+              value={`${ov.travel_dates?.start} → ${ov.travel_dates?.end}`}
+            />
+            <OverviewChip
+              icon={<Calendar size={14} />}
+              label="Duration"
+              value={`${ov.travel_dates?.num_days} days`}
+            />
+            <OverviewChip
+              icon={<Users size={14} />}
+              label="Travelers"
+              value={`${ov.num_travelers} person${ov.num_travelers > 1 ? "s" : ""}`}
+            />
+            <OverviewChip
+              icon={<Wallet size={14} />}
+              label="Budget"
+              value={f(ov.total_budget)}
+            />
           </div>
           {ov.travel_style && (
             <span className="inline-block mt-3 text-xs font-medium px-2.5 py-1 bg-primary/10 text-primary rounded-full capitalize">
@@ -475,11 +578,22 @@ function PlanResult({ plan }: { plan: MasterPlan }) {
       {/* Budget Summary */}
       {plan.budget_summary && (
         <div className="bg-card rounded-2xl border border-border p-5 space-y-5">
-          <h3 className="font-bold text-foreground text-base">Budget Summary</h3>
+          <h3 className="font-bold text-foreground text-base">
+            Budget Summary
+          </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <MetricCard label="Your Budget"     value={f(plan.budget_summary.total_budget)} />
-            <MetricCard label="Estimated Total" value={f(plan.budget_summary.total_estimated_cost)} />
-            <MetricCard label="Remaining"       value={f(plan.budget_summary.remaining_buffer)} />
+            <MetricCard
+              label="Your Budget"
+              value={f(plan.budget_summary.total_budget)}
+            />
+            <MetricCard
+              label="Estimated Total"
+              value={f(plan.budget_summary.total_estimated_cost)}
+            />
+            <MetricCard
+              label="Remaining"
+              value={f(plan.budget_summary.remaining_buffer)}
+            />
           </div>
 
           {plan.budget_summary.verdict && (
@@ -490,10 +604,17 @@ function PlanResult({ plan }: { plan: MasterPlan }) {
 
           {plan.budget_summary.breakdown && (
             <div className="space-y-2">
-              <p className="text-xs font-bold text-foreground uppercase tracking-wide">Breakdown</p>
+              <p className="text-xs font-bold text-foreground uppercase tracking-wide">
+                Breakdown
+              </p>
               {Object.entries(plan.budget_summary.breakdown).map(([k, v]) => (
-                <div key={k} className="flex justify-between items-center text-sm">
-                  <span className="text-muted-foreground capitalize">{k.replace(/_/g, " ")}</span>
+                <div
+                  key={k}
+                  className="flex justify-between items-center text-sm"
+                >
+                  <span className="text-muted-foreground capitalize">
+                    {k.replace(/_/g, " ")}
+                  </span>
                   <strong className="text-foreground">{f(v)}</strong>
                 </div>
               ))}
@@ -502,11 +623,17 @@ function PlanResult({ plan }: { plan: MasterPlan }) {
 
           {(plan.budget_summary.top_savings_opportunities?.length ?? 0) > 0 && (
             <div className="bg-accent/5 rounded-xl p-4 border border-accent/10">
-              <p className="text-sm font-bold text-foreground mb-2">💰 Savings Opportunities</p>
+              <p className="text-sm font-bold text-foreground mb-2">
+                💰 Savings Opportunities
+              </p>
               <ul className="space-y-1.5">
                 {plan.budget_summary.top_savings_opportunities.map((tip, i) => (
-                  <li key={i} className="text-sm text-muted-foreground flex gap-2">
-                    <span className="text-accent">•</span>{tip}
+                  <li
+                    key={i}
+                    className="text-sm text-muted-foreground flex gap-2"
+                  >
+                    <span className="text-accent">•</span>
+                    {tip}
                   </li>
                 ))}
               </ul>
@@ -519,7 +646,9 @@ function PlanResult({ plan }: { plan: MasterPlan }) {
       {plan.transport && <TransportSection transport={plan.transport} f={f} />}
 
       {/* Accommodation */}
-      {plan.accommodation && <AccommodationSection accommodation={plan.accommodation} f={f} />}
+      {plan.accommodation && (
+        <AccommodationSection accommodation={plan.accommodation} f={f} />
+      )}
 
       {/* Itinerary */}
       {(plan.itinerary?.days?.length ?? 0) > 0 && (
@@ -529,7 +658,15 @@ function PlanResult({ plan }: { plan: MasterPlan }) {
   );
 }
 
-function OverviewChip({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function OverviewChip({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
   return (
     <div className="flex flex-col gap-1">
       <span className="flex items-center gap-1 text-xs text-muted-foreground font-medium">
@@ -542,11 +679,17 @@ function OverviewChip({ icon, label, value }: { icon: React.ReactNode; label: st
 
 // ── Transport ──────────────────────────────────────────────────────────────────
 
-function TransportSection({ transport, f }: { transport: NonNullable<MasterPlan["transport"]>; f: (v: number) => string }) {
+function TransportSection({
+  transport,
+  f,
+}: {
+  transport: NonNullable<MasterPlan["transport"]>;
+  f: (v: number) => string;
+}) {
   const modes = [
-    { key: "flights" as const, label: "Flights",  icon: "✈️" },
-    { key: "trains"  as const, label: "Trains",   icon: "🚂" },
-    { key: "buses"   as const, label: "Buses",    icon: "🚌" },
+    { key: "flights" as const, label: "Flights", icon: "✈️" },
+    { key: "trains" as const, label: "Trains", icon: "🚂" },
+    { key: "buses" as const, label: "Buses", icon: "🚌" },
   ];
 
   const recMode = transport.recommended_mode?.toLowerCase() ?? "";
@@ -565,7 +708,9 @@ function TransportSection({ transport, f }: { transport: NonNullable<MasterPlan[
             key={key}
             className={`rounded-2xl border-2 overflow-hidden ${isRec ? "border-primary/30" : "border-border"}`}
           >
-            <div className={`flex items-center gap-3 px-5 py-3 ${isRec ? "bg-primary/10" : "bg-secondary/30"}`}>
+            <div
+              className={`flex items-center gap-3 px-5 py-3 ${isRec ? "bg-primary/10" : "bg-secondary/30"}`}
+            >
               <span className="text-lg">{icon}</span>
               <span className="font-bold text-foreground">{label}</span>
               {isRec && (
@@ -574,7 +719,8 @@ function TransportSection({ transport, f }: { transport: NonNullable<MasterPlan[
                 </span>
               )}
               <span className="ml-auto text-xs text-muted-foreground">
-                {mode.total_options_found ?? mode.options.length} found · showing {mode.options.length}
+                {mode.total_options_found ?? mode.options.length} found ·
+                showing {mode.options.length}
               </span>
             </div>
 
@@ -582,28 +728,47 @@ function TransportSection({ transport, f }: { transport: NonNullable<MasterPlan[
               {mode.options.map((opt) => {
                 const isRecOption = opt.rank === mode.recommended_rank;
                 const name =
-                  opt.airline ?? opt.train_name ?? opt.operator ?? `Option ${opt.rank}`;
-                const number = opt.flight_number ?? opt.train_number ?? opt.bus_type ?? "";
+                  opt.airline ??
+                  opt.train_name ??
+                  opt.operator ??
+                  `Option ${opt.rank}`;
+                const number =
+                  opt.flight_number ?? opt.train_number ?? opt.bus_type ?? "";
 
                 return (
                   <div
                     key={opt.rank}
                     className={`flex flex-col gap-2 rounded-xl p-4 border ${
-                      isRecOption ? "bg-primary/5 border-primary/30" : "bg-background border-border"
+                      isRecOption
+                        ? "bg-primary/5 border-primary/30"
+                        : "bg-background border-border"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="font-semibold text-foreground text-sm leading-snug">{name}</p>
-                        {number && <p className="text-xs text-primary font-medium mt-0.5">{number}</p>}
+                        <p className="font-semibold text-foreground text-sm leading-snug">
+                          {name}
+                        </p>
+                        {number && (
+                          <p className="text-xs text-primary font-medium mt-0.5">
+                            {number}
+                          </p>
+                        )}
                       </div>
                       {isRecOption && (
-                        <span className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-green-100/50 text-green-700">✓</span>
+                        <span className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-green-100/50 text-green-700">
+                          ✓
+                        </span>
                       )}
                     </div>
 
                     <div className="space-y-0.5 text-xs text-muted-foreground">
-                      {opt.departure_time && <p>🕐 {opt.departure_time}{opt.arrival_time ? ` → ${opt.arrival_time}` : ""}</p>}
+                      {opt.departure_time && (
+                        <p>
+                          🕐 {opt.departure_time}
+                          {opt.arrival_time ? ` → ${opt.arrival_time}` : ""}
+                        </p>
+                      )}
                       {opt.duration && <p>⏱ {opt.duration}</p>}
                       {opt.stops && <p>🔁 {opt.stops}</p>}
                       {opt.class && <p>💺 {opt.class}</p>}
@@ -612,18 +777,28 @@ function TransportSection({ transport, f }: { transport: NonNullable<MasterPlan[
                     <div className="mt-auto pt-2 border-t border-border">
                       {opt.estimated_cost_per_person > 0 && (
                         <>
-                          <p className="text-lg font-bold text-primary leading-tight">{f(opt.estimated_cost_per_person)}</p>
-                          <p className="text-xs text-muted-foreground">per person</p>
+                          <p className="text-lg font-bold text-primary leading-tight">
+                            {f(opt.estimated_cost_per_person)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            per person
+                          </p>
                         </>
                       )}
                       {opt.total_cost > 0 && (
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Total: <strong className="text-foreground">{f(opt.total_cost)}</strong>
+                          Total:{" "}
+                          <strong className="text-foreground">
+                            {f(opt.total_cost)}
+                          </strong>
                         </p>
                       )}
                       {opt.booking_platform && (
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          via <strong className="text-foreground">{opt.booking_platform}</strong>
+                          via{" "}
+                          <strong className="text-foreground">
+                            {opt.booking_platform}
+                          </strong>
                         </p>
                       )}
                     </div>
@@ -646,13 +821,18 @@ function TransportSection({ transport, f }: { transport: NonNullable<MasterPlan[
         {transport.local_transport?.daily_cost_per_person > 0 && (
           <div className="flex items-center justify-between px-5 py-4 bg-secondary/30 rounded-2xl border border-border">
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Local Transport</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Local Transport
+              </p>
               <p className="text-sm font-semibold text-foreground mt-0.5">
-                {transport.local_transport.recommended_options?.join(", ") || "Public transit"}
+                {transport.local_transport.recommended_options?.join(", ") ||
+                  "Public transit"}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-lg font-bold text-primary">{f(transport.local_transport.daily_cost_per_person)}</p>
+              <p className="text-lg font-bold text-primary">
+                {f(transport.local_transport.daily_cost_per_person)}
+              </p>
               <p className="text-xs text-muted-foreground">per day</p>
             </div>
           </div>
@@ -660,13 +840,21 @@ function TransportSection({ transport, f }: { transport: NonNullable<MasterPlan[
         {transport.airport_transfer?.cost > 0 && (
           <div className="flex items-center justify-between px-5 py-4 bg-secondary/30 rounded-2xl border border-border">
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Airport Transfer</p>
-              <p className="text-sm font-semibold text-foreground mt-0.5">{transport.airport_transfer.recommended_mode}</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Airport Transfer
+              </p>
+              <p className="text-sm font-semibold text-foreground mt-0.5">
+                {transport.airport_transfer.recommended_mode}
+              </p>
               {transport.airport_transfer.notes && (
-                <p className="text-xs text-muted-foreground mt-0.5">{transport.airport_transfer.notes}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {transport.airport_transfer.notes}
+                </p>
               )}
             </div>
-            <p className="text-lg font-bold text-primary">{f(transport.airport_transfer.cost)}</p>
+            <p className="text-lg font-bold text-primary">
+              {f(transport.airport_transfer.cost)}
+            </p>
           </div>
         )}
       </div>
@@ -682,7 +870,13 @@ function TransportSection({ transport, f }: { transport: NonNullable<MasterPlan[
 
 // ── Accommodation ──────────────────────────────────────────────────────────────
 
-function AccommodationSection({ accommodation, f }: { accommodation: NonNullable<MasterPlan["accommodation"]>; f: (v: number) => string }) {
+function AccommodationSection({
+  accommodation,
+  f,
+}: {
+  accommodation: NonNullable<MasterPlan["accommodation"]>;
+  f: (v: number) => string;
+}) {
   if (!accommodation.options?.length) return null;
 
   return (
@@ -690,7 +884,8 @@ function AccommodationSection({ accommodation, f }: { accommodation: NonNullable
       <div className="flex items-center justify-between">
         <h3 className="font-bold text-foreground text-base">Where to Stay</h3>
         <span className="text-xs text-muted-foreground">
-          {accommodation.total_options_found ?? accommodation.options.length} found · showing {accommodation.options.length}
+          {accommodation.total_options_found ?? accommodation.options.length}{" "}
+          found · showing {accommodation.options.length}
         </span>
       </div>
 
@@ -701,52 +896,76 @@ function AccommodationSection({ accommodation, f }: { accommodation: NonNullable
             <div
               key={opt.rank}
               className={`flex flex-col gap-2 rounded-2xl p-4 border-2 ${
-                isRec ? "bg-primary/5 border-primary/30" : "bg-card border-border"
+                isRec
+                  ? "bg-primary/5 border-primary/30"
+                  : "bg-card border-border"
               }`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="font-semibold text-foreground text-sm leading-snug">{opt.property_name || opt.type}</p>
-                  <p className="text-xs text-muted-foreground capitalize mt-0.5">{opt.type}</p>
+                  <p className="font-semibold text-foreground text-sm leading-snug">
+                    {opt.property_name || opt.type}
+                  </p>
+                  <p className="text-xs text-muted-foreground capitalize mt-0.5">
+                    {opt.type}
+                  </p>
                 </div>
                 {isRec && (
-                  <span className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-green-100/50 text-green-700">✓ Pick</span>
+                  <span className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-green-100/50 text-green-700">
+                    ✓ Pick
+                  </span>
                 )}
               </div>
 
               {opt.location_notes && (
                 <p className="text-xs text-muted-foreground flex gap-1">
-                  <MapPin size={11} className="shrink-0 mt-0.5" />{opt.location_notes}
+                  <MapPin size={11} className="shrink-0 mt-0.5" />
+                  {opt.location_notes}
                 </p>
               )}
 
               {opt.amenities?.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {opt.amenities.slice(0, 4).map((a, j) => (
-                    <span key={j} className="text-xs bg-secondary/50 text-foreground rounded-full px-2 py-0.5">{a}</span>
+                    <span
+                      key={j}
+                      className="text-xs bg-secondary/50 text-foreground rounded-full px-2 py-0.5"
+                    >
+                      {a}
+                    </span>
                   ))}
                 </div>
               )}
 
               {opt.breakfast_included && (
-                <span className="text-xs text-green-700 font-medium">🍳 Breakfast included</span>
+                <span className="text-xs text-green-700 font-medium">
+                  🍳 Breakfast included
+                </span>
               )}
 
               <div className="mt-auto pt-2 border-t border-border">
                 {opt.estimated_price_per_night > 0 && (
                   <>
-                    <p className="text-lg font-bold text-primary leading-tight">{f(opt.estimated_price_per_night)}</p>
+                    <p className="text-lg font-bold text-primary leading-tight">
+                      {f(opt.estimated_price_per_night)}
+                    </p>
                     <p className="text-xs text-muted-foreground">per night</p>
                   </>
                 )}
                 {opt.total_cost > 0 && (
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Total: <strong className="text-foreground">{f(opt.total_cost)}</strong>
+                    Total:{" "}
+                    <strong className="text-foreground">
+                      {f(opt.total_cost)}
+                    </strong>
                   </p>
                 )}
                 {opt.booking_platform && (
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    via <strong className="text-foreground">{opt.booking_platform}</strong>
+                    via{" "}
+                    <strong className="text-foreground">
+                      {opt.booking_platform}
+                    </strong>
                   </p>
                 )}
               </div>
@@ -764,7 +983,9 @@ function AccommodationSection({ accommodation, f }: { accommodation: NonNullable
       {accommodation.total_accommodation_cost > 0 && (
         <p className="text-sm text-muted-foreground text-right">
           Total accommodation cost:{" "}
-          <strong className="text-foreground">{f(accommodation.total_accommodation_cost)}</strong>
+          <strong className="text-foreground">
+            {f(accommodation.total_accommodation_cost)}
+          </strong>
         </p>
       )}
     </div>
@@ -773,49 +994,93 @@ function AccommodationSection({ accommodation, f }: { accommodation: NonNullable
 
 // ── Itinerary ──────────────────────────────────────────────────────────────────
 
-function ItinerarySection({ itinerary, f }: { itinerary: NonNullable<MasterPlan["itinerary"]>; f: (v: number) => string }) {
+function ItinerarySection({
+  itinerary,
+  f,
+}: {
+  itinerary: NonNullable<MasterPlan["itinerary"]>;
+  f: (v: number) => string;
+}) {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h3 className="font-bold text-foreground text-base">Day-by-Day Itinerary</h3>
+        <h3 className="font-bold text-foreground text-base">
+          Day-by-Day Itinerary
+        </h3>
         {itinerary.daily_budget_target > 0 && (
           <span className="text-xs text-muted-foreground">
-            Target: <strong className="text-foreground">{f(itinerary.daily_budget_target)}/day</strong>
+            Target:{" "}
+            <strong className="text-foreground">
+              {f(itinerary.daily_budget_target)}/day
+            </strong>
           </span>
         )}
       </div>
 
       <div className="space-y-4">
         {itinerary.days.map((day) => (
-          <div key={day.day} className="bg-card rounded-2xl border border-border overflow-hidden">
+          <div
+            key={day.day}
+            className="bg-card rounded-2xl border border-border overflow-hidden"
+          >
             <div className="bg-gradient-to-r from-primary/10 to-accent/10 px-5 py-3 border-b border-border flex items-center justify-between">
               <div>
-                <h4 className="font-bold text-foreground">Day {day.day}: {day.theme}</h4>
-                {day.date && <p className="text-xs text-muted-foreground mt-0.5">{day.date}</p>}
+                <h4 className="font-bold text-foreground">
+                  Day {day.day}: {day.theme}
+                </h4>
+                {day.date && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {day.date}
+                  </p>
+                )}
               </div>
               <div className="text-right">
                 <p className="text-xs text-muted-foreground">Day Total</p>
-                <p className="text-base font-bold text-primary">{f(day.day_total)}</p>
+                <p className="text-base font-bold text-primary">
+                  {f(day.day_total)}
+                </p>
               </div>
             </div>
 
             <div className="p-5 space-y-4">
               {/* Morning */}
-              <TimeSlot label="🌅 Morning" activity={day.morning} meal={day.breakfast} mealLabel="Breakfast" f={f} />
+              <TimeSlot
+                label="🌅 Morning"
+                activity={day.morning}
+                meal={day.breakfast}
+                mealLabel="Breakfast"
+                f={f}
+              />
               {/* Afternoon */}
               <div className="border-t border-border pt-4">
-                <TimeSlot label="☀️ Afternoon" activity={day.afternoon} meal={day.lunch} mealLabel="Lunch" f={f} />
+                <TimeSlot
+                  label="☀️ Afternoon"
+                  activity={day.afternoon}
+                  meal={day.lunch}
+                  mealLabel="Lunch"
+                  f={f}
+                />
               </div>
               {/* Evening */}
               <div className="border-t border-border pt-4">
-                <TimeSlot label="🌙 Evening" activity={day.evening} meal={day.dinner} mealLabel="Dinner" f={f} />
+                <TimeSlot
+                  label="🌙 Evening"
+                  activity={day.evening}
+                  meal={day.dinner}
+                  mealLabel="Dinner"
+                  f={f}
+                />
               </div>
 
               {/* Local transport for the day */}
               {day.local_transport > 0 && (
                 <div className="border-t border-border pt-3 flex justify-between text-sm">
-                  <span className="text-muted-foreground">🚌 Local transport</span>
-                  <span className="font-medium text-foreground">{f(day.local_transport)}</span>
+                  <span className="text-muted-foreground">
+                    🚌 Local transport
+                  </span>
+                  <span className="font-medium text-foreground">
+                    {f(day.local_transport)}
+                  </span>
                 </div>
               )}
             </div>
@@ -833,11 +1098,17 @@ function ItinerarySection({ itinerary, f }: { itinerary: NonNullable<MasterPlan[
       <div className="grid sm:grid-cols-2 gap-4">
         {itinerary.money_saving_hacks?.length > 0 && (
           <div className="bg-accent/5 border border-accent/10 rounded-xl p-4">
-            <p className="font-bold text-foreground mb-2 text-sm">💰 Money-Saving Hacks</p>
+            <p className="font-bold text-foreground mb-2 text-sm">
+              💰 Money-Saving Hacks
+            </p>
             <ul className="space-y-1.5">
               {itinerary.money_saving_hacks.map((h, i) => (
-                <li key={i} className="text-sm text-muted-foreground flex gap-2">
-                  <span className="text-accent">•</span>{h}
+                <li
+                  key={i}
+                  className="text-sm text-muted-foreground flex gap-2"
+                >
+                  <span className="text-accent">•</span>
+                  {h}
                 </li>
               ))}
             </ul>
@@ -845,11 +1116,17 @@ function ItinerarySection({ itinerary, f }: { itinerary: NonNullable<MasterPlan[
         )}
         {itinerary.free_time_suggestions?.length > 0 && (
           <div className="bg-accent/5 border border-accent/10 rounded-xl p-4">
-            <p className="font-bold text-foreground mb-2 text-sm">🎯 Free Time Ideas</p>
+            <p className="font-bold text-foreground mb-2 text-sm">
+              🎯 Free Time Ideas
+            </p>
             <ul className="space-y-1.5">
               {itinerary.free_time_suggestions.map((s, i) => (
-                <li key={i} className="text-sm text-muted-foreground flex gap-2">
-                  <span className="text-accent">•</span>{s}
+                <li
+                  key={i}
+                  className="text-sm text-muted-foreground flex gap-2"
+                >
+                  <span className="text-accent">•</span>
+                  {s}
                 </li>
               ))}
             </ul>
@@ -861,7 +1138,11 @@ function ItinerarySection({ itinerary, f }: { itinerary: NonNullable<MasterPlan[
 }
 
 function TimeSlot({
-  label, activity, meal, mealLabel, f,
+  label,
+  activity,
+  meal,
+  mealLabel,
+  f,
 }: {
   label: string;
   activity?: Activity;
@@ -871,21 +1152,29 @@ function TimeSlot({
 }) {
   return (
     <div>
-      <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-2">{label}</p>
+      <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-2">
+        {label}
+      </p>
       <div className="space-y-1.5 text-sm">
         {activity?.activity && (
           <div className="flex justify-between gap-4">
             <div>
               <span className="text-foreground">{activity.activity}</span>
               {activity.location && (
-                <span className="text-muted-foreground text-xs ml-2">📍 {activity.location}</span>
+                <span className="text-muted-foreground text-xs ml-2">
+                  📍 {activity.location}
+                </span>
               )}
               {activity.notes && (
-                <p className="text-xs text-muted-foreground mt-0.5">{activity.notes}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {activity.notes}
+                </p>
               )}
             </div>
             {activity.entry_fee > 0 && (
-              <span className="font-semibold text-primary shrink-0">{f(activity.entry_fee)}</span>
+              <span className="font-semibold text-primary shrink-0">
+                {f(activity.entry_fee)}
+              </span>
             )}
           </div>
         )}
@@ -894,11 +1183,15 @@ function TimeSlot({
             <span>
               🍽️ {mealLabel} · {meal.place_type}
               {meal.recommended_dish && (
-                <span className="italic text-xs ml-1">({meal.recommended_dish})</span>
+                <span className="italic text-xs ml-1">
+                  ({meal.recommended_dish})
+                </span>
               )}
             </span>
             {meal.cost > 0 && (
-              <span className="text-foreground font-medium">{f(meal.cost)}</span>
+              <span className="text-foreground font-medium">
+                {f(meal.cost)}
+              </span>
             )}
           </div>
         )}
@@ -912,7 +1205,9 @@ function TimeSlot({
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">{label}</span>
+      <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+        {label}
+      </span>
       <strong className="text-xl text-foreground leading-tight">{value}</strong>
     </div>
   );

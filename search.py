@@ -344,8 +344,9 @@ def search_live_trip_data(
         results = _get_serpapi().search({"engine": "google_ai_mode", "q": prompt})
         results = dict(results)
 
-        with open("serpapi_result.txt", "w", encoding="utf-8") as f:
-            json.dump(results, f, indent=2)
+        if os.getenv("DEBUG_SERPAPI"):
+            with open("serpapi_result.txt", "w", encoding="utf-8") as f:
+                json.dump(results, f, indent=2)
 
         data = _extract_ai_mode_json(results)
         if data is None:
