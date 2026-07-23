@@ -128,6 +128,28 @@ python main.py
 | `GROQ_API_KEY` | Yes | Groq API key for LLM inference |
 | `SERPAPI_API_KEY` | Yes | SerpAPI key for live travel data |
 | `NEXT_PUBLIC_API_URL` | No | Backend URL (default: `http://localhost:8000`) |
+| `CORS_ORIGINS` | No | Comma-separated extra origins allowed to call the API (e.g. a custom domain). `*.vercel.app` and `localhost:3000` are always allowed. |
+
+## Deployment
+
+Backend and frontend deploy separately.
+
+### Backend (Render)
+
+1. Push this repo to GitHub.
+2. On [Render](https://render.com), **New → Blueprint**, point it at the repo. It picks up [`render.yaml`](render.yaml) and creates a free web service (`uvicorn api:app`) with a `/health` check.
+3. In the service's **Environment** tab, set `GROQ_API_KEY` and `SERPAPI_API_KEY` (Render prompts for these since the blueprint marks them `sync: false` — they're never committed to the repo).
+4. Note the service URL, e.g. `https://travelplanner-api.onrender.com`.
+
+The free plan spins the service down after 15 minutes of inactivity — the first request after a period of idleness takes ~30-50s to wake up. That's fine for casual/dev use; upgrade to a paid instance to keep it always warm.
+
+### Frontend (Vercel)
+
+1. On [Vercel](https://vercel.com), **Add New → Project**, import the repo, and set the project root to `frontend/`.
+2. Set the environment variable `NEXT_PUBLIC_API_URL` to your Render backend URL from above.
+3. Deploy. Vercel builds and hosts the Next.js app on a free `*.vercel.app` domain — the backend's CORS config already allows any `*.vercel.app` origin.
+
+Anyone with the Vercel URL can now use the app; they don't need their own API keys since the backend holds them.
 
 ## License
 
