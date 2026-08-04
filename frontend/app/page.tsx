@@ -456,18 +456,20 @@ function WelcomeScreen({ onSelect }: { onSelect: (p: string) => void }) {
                 />
               </div>
               <div className="space-y-2 border-t border-border pt-3 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
-                {["Beach arrival", "Fort Aguada and cafes", "Markets and sunset"].map(
-                  (item, i) => (
-                    <div key={item} className="flex items-center gap-3">
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-background text-xs font-bold text-primary">
-                        {i + 1}
-                      </span>
-                      <span className="text-sm font-medium text-foreground">
-                        {item}
-                      </span>
-                    </div>
-                  )
-                )}
+                {[
+                  "Beach arrival",
+                  "Fort Aguada and cafes",
+                  "Markets and sunset",
+                ].map((item, i) => (
+                  <div key={item} className="flex items-center gap-3">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-background text-xs font-bold text-primary">
+                      {i + 1}
+                    </span>
+                    <span className="text-sm font-medium text-foreground">
+                      {item}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -479,27 +481,29 @@ function WelcomeScreen({ onSelect }: { onSelect: (p: string) => void }) {
           Try a prompt
         </p>
         <div className="grid gap-3 md:grid-cols-3">
-        {EXAMPLE_PROMPTS.map((item) => (
-          <button
-            key={item.prompt}
-            onClick={() => onSelect(item.prompt)}
-            className="group flex min-h-28 flex-col justify-between rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-secondary/40 hover:shadow-md"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                {item.icon}
-              </span>
-              <SendHorizonal
-                size={15}
-                className="shrink-0 text-muted-foreground transition group-hover:text-primary"
-              />
-            </div>
-            <div>
-              <p className="font-semibold text-foreground">{item.title}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{item.meta}</p>
-            </div>
-          </button>
-        ))}
+          {EXAMPLE_PROMPTS.map((item) => (
+            <button
+              key={item.prompt}
+              onClick={() => onSelect(item.prompt)}
+              className="group flex min-h-28 flex-col justify-between rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-secondary/40 hover:shadow-md"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  {item.icon}
+                </span>
+                <SendHorizonal
+                  size={15}
+                  className="shrink-0 text-muted-foreground transition group-hover:text-primary"
+                />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground">{item.title}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {item.meta}
+                </p>
+              </div>
+            </button>
+          ))}
         </div>
       </div>
     </div>
@@ -562,7 +566,7 @@ function ThinkingPanel() {
     if (stepIdx >= PLANNING_STEPS.length - 1) return;
     const timer = setTimeout(
       () => setStepIdx((i) => i + 1),
-      PLANNING_STEPS[stepIdx].duration
+      PLANNING_STEPS[stepIdx].duration,
     );
     return () => clearTimeout(timer);
   }, [stepIdx]);
@@ -626,7 +630,9 @@ function PlanResult({ plan }: { plan: MasterPlan }) {
                   {ov.destination}
                   {ov.country ? `, ${ov.country}` : ""}
                 </h2>
-                <p className="text-sm text-muted-foreground">from {ov.origin}</p>
+                <p className="text-sm text-muted-foreground">
+                  from {ov.origin}
+                </p>
               </div>
               <StatusBadge status={plan.budget_summary?.status} />
             </div>
@@ -663,12 +669,18 @@ function PlanResult({ plan }: { plan: MasterPlan }) {
           action={<StatusBadge status={plan.budget_summary.status} />}
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <MetricCard label="Your Budget" value={f(plan.budget_summary.total_budget)} />
+            <MetricCard
+              label="Your Budget"
+              value={f(plan.budget_summary.total_budget)}
+            />
             <MetricCard
               label="Estimated Total"
               value={f(plan.budget_summary.total_estimated_cost)}
             />
-            <MetricCard label="Remaining" value={f(plan.budget_summary.remaining_buffer)} />
+            <MetricCard
+              label="Remaining"
+              value={f(plan.budget_summary.remaining_buffer)}
+            />
           </div>
           {plan.budget_summary.verdict && (
             <p className="rounded-2xl bg-secondary/45 p-4 text-sm leading-relaxed text-muted-foreground">
@@ -678,7 +690,10 @@ function PlanResult({ plan }: { plan: MasterPlan }) {
           {plan.budget_summary.breakdown && (
             <div className="space-y-2">
               {Object.entries(plan.budget_summary.breakdown).map(([k, v]) => (
-                <div key={k} className="flex items-center justify-between text-sm">
+                <div
+                  key={k}
+                  className="flex items-center justify-between text-sm"
+                >
                   <span className="capitalize text-muted-foreground">
                     {k.replace(/_/g, " ")}
                   </span>
@@ -730,7 +745,9 @@ function TransportSection({
           <div
             key={key}
             className={`overflow-hidden rounded-2xl border ${
-              isRec ? "border-primary/35 bg-primary/5" : "border-border bg-background"
+              isRec
+                ? "border-primary/35 bg-primary/5"
+                : "border-border bg-background"
             }`}
           >
             <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
@@ -738,8 +755,8 @@ function TransportSection({
               <span className="font-bold text-foreground">{label}</span>
               {isRec && <Badge>Recommended</Badge>}
               <span className="ml-auto text-xs text-muted-foreground">
-                {mode.total_options_found ?? mode.options.length} found | showing{" "}
-                {mode.options.length}
+                {mode.total_options_found ?? mode.options.length} found |
+                showing {mode.options.length}
               </span>
             </div>
             <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -781,7 +798,9 @@ function TransportSection({
       </div>
 
       {transport.savings_tips && (
-        <Insight icon={<Lightbulb size={15} />}>{transport.savings_tips}</Insight>
+        <Insight icon={<Lightbulb size={15} />}>
+          {transport.savings_tips}
+        </Insight>
       )}
     </Panel>
   );
@@ -802,7 +821,8 @@ function AccommodationSection({
       icon={<BedDouble size={17} />}
       action={
         <span className="text-xs text-muted-foreground">
-          {accommodation.total_options_found ?? accommodation.options.length} found
+          {accommodation.total_options_found ?? accommodation.options.length}{" "}
+          found
         </span>
       }
     >
@@ -813,7 +833,9 @@ function AccommodationSection({
             <div
               key={opt.rank}
               className={`flex flex-col gap-3 rounded-2xl border p-4 ${
-                isRec ? "border-primary/35 bg-primary/5" : "border-border bg-background"
+                isRec
+                  ? "border-primary/35 bg-primary/5"
+                  : "border-border bg-background"
               }`}
             >
               <div className="flex items-start justify-between gap-3">
@@ -828,7 +850,9 @@ function AccommodationSection({
                 {isRec && <Badge>Pick</Badge>}
               </div>
               {opt.location_notes && (
-                <IconText icon={<MapPin size={12} />}>{opt.location_notes}</IconText>
+                <IconText icon={<MapPin size={12} />}>
+                  {opt.location_notes}
+                </IconText>
               )}
               {opt.amenities?.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
@@ -843,7 +867,9 @@ function AccommodationSection({
                 </div>
               )}
               {opt.breakfast_included && (
-                <IconText icon={<Utensils size={12} />}>Breakfast included</IconText>
+                <IconText icon={<Utensils size={12} />}>
+                  Breakfast included
+                </IconText>
               )}
               <div className="mt-auto border-t border-border pt-3">
                 {opt.estimated_price_per_night > 0 && (
@@ -856,16 +882,24 @@ function AccommodationSection({
                 )}
                 {opt.total_cost > 0 && (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Total: <strong className="text-foreground">{f(opt.total_cost)}</strong>
+                    Total:{" "}
+                    <strong className="text-foreground">
+                      {f(opt.total_cost)}
+                    </strong>
                   </p>
                 )}
                 {opt.booking_platform && (
                   <p className="text-xs text-muted-foreground">
-                    via <strong className="text-foreground">{opt.booking_platform}</strong>
+                    via{" "}
+                    <strong className="text-foreground">
+                      {opt.booking_platform}
+                    </strong>
                   </p>
                 )}
               </div>
-              {opt.pro_tip && <Insight icon={<Lightbulb size={13} />}>{opt.pro_tip}</Insight>}
+              {opt.pro_tip && (
+                <Insight icon={<Lightbulb size={13} />}>{opt.pro_tip}</Insight>
+              )}
             </div>
           );
         })}
@@ -906,17 +940,24 @@ function ItinerarySection({
     >
       <div className="space-y-4">
         {itinerary.days.map((day) => (
-          <div key={day.day} className="overflow-hidden rounded-2xl border border-border bg-background">
+          <div
+            key={day.day}
+            className="overflow-hidden rounded-2xl border border-border bg-background"
+          >
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-secondary/35 px-5 py-3">
               <div>
                 <h4 className="font-bold text-foreground">
                   Day {day.day}: {day.theme}
                 </h4>
-                {day.date && <p className="text-xs text-muted-foreground">{day.date}</p>}
+                {day.date && (
+                  <p className="text-xs text-muted-foreground">{day.date}</p>
+                )}
               </div>
               <div className="text-right">
                 <p className="text-xs text-muted-foreground">Day Total</p>
-                <p className="text-base font-bold text-primary">{f(day.day_total)}</p>
+                <p className="text-base font-bold text-primary">
+                  {f(day.day_total)}
+                </p>
               </div>
             </div>
             <div className="space-y-4 p-5">
@@ -955,15 +996,23 @@ function ItinerarySection({
             </div>
             {day.budget_tip && (
               <div className="border-t border-border bg-accent/5 px-5 py-3">
-                <Insight icon={<Lightbulb size={13} />}>{day.budget_tip}</Insight>
+                <Insight icon={<Lightbulb size={13} />}>
+                  {day.budget_tip}
+                </Insight>
               </div>
             )}
           </div>
         ))}
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <TipList title="Money-Saving Ideas" tips={itinerary.money_saving_hacks} />
-        <TipList title="Free Time Ideas" tips={itinerary.free_time_suggestions} />
+        <TipList
+          title="Money-Saving Ideas"
+          tips={itinerary.money_saving_hacks}
+        />
+        <TipList
+          title="Free Time Ideas"
+          tips={itinerary.free_time_suggestions}
+        />
       </div>
     </Panel>
   );
@@ -978,7 +1027,8 @@ function TransportCard({
   f: (v: number) => string;
   isRec: boolean;
 }) {
-  const name = opt.airline ?? opt.train_name ?? opt.operator ?? `Option ${opt.rank}`;
+  const name =
+    opt.airline ?? opt.train_name ?? opt.operator ?? `Option ${opt.rank}`;
   const number = opt.flight_number ?? opt.train_number ?? opt.bus_type ?? "";
 
   return (
@@ -989,8 +1039,12 @@ function TransportCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold leading-snug text-foreground">{name}</p>
-          {number && <p className="mt-0.5 text-xs font-medium text-primary">{number}</p>}
+          <p className="text-sm font-semibold leading-snug text-foreground">
+            {name}
+          </p>
+          {number && (
+            <p className="mt-0.5 text-xs font-medium text-primary">{number}</p>
+          )}
         </div>
         {isRec && <Badge>Pick</Badge>}
       </div>
@@ -1001,9 +1055,15 @@ function TransportCard({
             {opt.arrival_time ? ` -> ${opt.arrival_time}` : ""}
           </IconText>
         )}
-        {opt.duration && <IconText icon={<Clock size={12} />}>{opt.duration}</IconText>}
-        {opt.stops && <IconText icon={<Repeat size={12} />}>{opt.stops}</IconText>}
-        {opt.class && <IconText icon={<Armchair size={12} />}>{opt.class}</IconText>}
+        {opt.duration && (
+          <IconText icon={<Clock size={12} />}>{opt.duration}</IconText>
+        )}
+        {opt.stops && (
+          <IconText icon={<Repeat size={12} />}>{opt.stops}</IconText>
+        )}
+        {opt.class && (
+          <IconText icon={<Armchair size={12} />}>{opt.class}</IconText>
+        )}
       </div>
       <div className="mt-auto border-t border-border pt-3">
         {opt.estimated_cost_per_person > 0 && (
@@ -1016,16 +1076,20 @@ function TransportCard({
         )}
         {opt.total_cost > 0 && (
           <p className="mt-1 text-xs text-muted-foreground">
-            Total: <strong className="text-foreground">{f(opt.total_cost)}</strong>
+            Total:{" "}
+            <strong className="text-foreground">{f(opt.total_cost)}</strong>
           </p>
         )}
         {opt.booking_platform && (
           <p className="text-xs text-muted-foreground">
-            via <strong className="text-foreground">{opt.booking_platform}</strong>
+            via{" "}
+            <strong className="text-foreground">{opt.booking_platform}</strong>
           </p>
         )}
       </div>
-      {opt.booking_tips && <Insight icon={<Lightbulb size={13} />}>{opt.booking_tips}</Insight>}
+      {opt.booking_tips && (
+        <Insight icon={<Lightbulb size={13} />}>{opt.booking_tips}</Insight>
+      )}
     </div>
   );
 }
@@ -1057,10 +1121,14 @@ function TimeSlot({
             <div>
               <span className="text-foreground">{activity.activity}</span>
               {activity.location && (
-                <IconText icon={<MapPin size={12} />}>{activity.location}</IconText>
+                <IconText icon={<MapPin size={12} />}>
+                  {activity.location}
+                </IconText>
               )}
               {activity.notes && (
-                <p className="mt-0.5 text-xs text-muted-foreground">{activity.notes}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {activity.notes}
+                </p>
               )}
             </div>
             {activity.entry_fee > 0 && (
@@ -1077,7 +1145,9 @@ function TimeSlot({
               {meal.recommended_dish ? ` (${meal.recommended_dish})` : ""}
             </IconText>
             {meal.cost > 0 && (
-              <span className="font-medium text-foreground">{f(meal.cost)}</span>
+              <span className="font-medium text-foreground">
+                {f(meal.cost)}
+              </span>
             )}
           </div>
         )}
@@ -1126,7 +1196,9 @@ function OverviewChip({
         <span className="text-primary">{icon}</span>
         {label}
       </span>
-      <span className="mt-1 block text-sm font-semibold text-foreground">{value}</span>
+      <span className="mt-1 block text-sm font-semibold text-foreground">
+        {value}
+      </span>
     </div>
   );
 }
@@ -1184,13 +1256,7 @@ function Badge({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SmallPill({
-  icon,
-  label,
-}: {
-  icon: React.ReactNode;
-  label: string;
-}) {
+function SmallPill({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
     <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-sm">
       <span className="text-primary">{icon}</span>
