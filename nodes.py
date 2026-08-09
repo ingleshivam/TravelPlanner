@@ -74,21 +74,53 @@ def route_after_collect_info(state: TravelPlanState) -> str:
     return "collect_info" if _missing_state_fields(state) else "confirm_budget"
 
 
+def _agui_messages_to_dicts(messages: list) -> list:
+    """Converts the AG-UI-managed state["messages"] (LangChain BaseMessage
+    objects) into the plain {"role", "content"} dicts chat_session's LLM
+    helpers expect."""
+    role_map = {"human": "user", "ai": "assistant", "system": "system"}
+    result = []
+    for m in messages:
+        content = getattr(m, "content", None)
+        if content:
+            role = role_map.get(getattr(m, "type", None), "user")
+            result.append({"role": role, "content": content})
+    return result
+
+
 def collect_info_node(state: TravelPlanState) -> dict:
     """Asks for whatever's missing and interrupts; loops back via route_after_collect_info
-    until all required trip params are present. No LLM call happens before interrupt(), so
-    resuming this node never re-runs expensive work."""
-    missing = _missing_state_fields(state)
-    if not missing:
-        return {}
+    until all required trip params are present."""
+    import chat_session as cs
 
-    history = state.get("messages") or []
+    history = state.get("conversation_log") or []
+    update: dict = {}
+
+    # First turn only (conversation_log is still empty): the user's opening
+    # message already sits in the AG-UI transcript (state["messages"]) before
+    # any interrupt fires. Extract from it so we don't re-ask for info they
+    # already gave in that first message.
+    if not history:
+        seed_history = _agui_messages_to_dicts(state.get("messages") or [])
+        if seed_history:
+            extracted = cs.extract_params(seed_history)
+            for k, v in extracted.items():
+                if v is not None:
+                    update[_PARAM_TO_STATE.get(k, k)] = v
+            history = seed_history
+
+    missing = _missing_state_fields({**state, **update})
+    if not missing:
+        if history:
+            update["conversation_log"] = history
+        return update
+
     question = _missing_prompt(missing)
 
     human_reply = interrupt({
         "type": "missing_fields_form",
         "missing_fields": missing,
-        "collected": _params_from_state(state),
+        "collected": _params_from_state({**state, **update}),
         "prompt": question,
     })
 
@@ -97,14 +129,11 @@ def collect_info_node(state: TravelPlanState) -> dict:
         {"role": "user", "content": human_reply},
     ]
 
-    import chat_session as cs
     extracted = cs.extract_params(history)
-    update = {
-        _PARAM_TO_STATE.get(k, k): v
-        for k, v in extracted.items()
-        if v is not None
-    }
-    update["messages"] = history
+    for k, v in extracted.items():
+        if v is not None:
+            update[_PARAM_TO_STATE.get(k, k)] = v
+    update["conversation_log"] = history
     return update
 
 
@@ -126,7 +155,7 @@ def confirm_budget_node(state: TravelPlanState) -> dict:
         "prompt": message,
     })
 
-    history = (state.get("messages") or []) + [
+    history = (state.get("conversation_log") or []) + [
         {"role": "assistant", "content": message},
         {"role": "user", "content": human_reply},
     ]
@@ -137,7 +166,7 @@ def confirm_budget_node(state: TravelPlanState) -> dict:
     ).isoformat()
 
     return {
-        "messages": history,
+        "conversation_log": history,
         "budget_allocation": budget_allocation,
         "end_date": end_date,
     }
@@ -198,3 +227,57 @@ def live_data_research_node(state: TravelPlanState) -> dict:
         update["destination"] = resolved_dest
 
     return update
+
+
+# ── Post-plan chat (generative UI via frontend actions) ─────────────────────
+
+def _plan_summary_for_prompt(master_plan: dict) -> str:
+    """Compact, grounded summary of the actual plan (not the full JSON) so the
+    LLM references real names/places instead of guessing plausible-sounding ones."""
+    overview = master_plan.get("trip_overview") or {}
+    lines = [
+        f"Destination: {overview.get('destination', 'unknown')}, {overview.get('country', '')}".rstrip(", "),
+        f"Duration: {overview.get('travel_dates', {}).get('num_days', '?')} days",
+    ]
+
+    top_stay = ((master_plan.get("accommodation") or {}).get("options") or [None])[0]
+    if top_stay:
+        name = top_stay.get("property_name") or "the recommended stay"
+        location = top_stay.get("location_notes")
+        lines.append(f"Booked stay: {name}" + (f" ({location})" if location else ""))
+
+    transport = master_plan.get("transport") or {}
+    rec_mode = transport.get("recommended_mode")
+    if rec_mode:
+        lines.append(f"Recommended transport: {rec_mode} via {transport.get('recommended_operator', '')}".rstrip(" via "))
+
+    days = ((master_plan.get("itinerary") or {}).get("days")) or []
+    for day in days:
+        theme = day.get("theme")
+        if theme:
+            lines.append(f"Day {day.get('day')}: {theme}")
+
+    return "\n".join(lines)
+
+
+def plan_chat_node(state: TravelPlanState) -> dict:
+    """Answers follow-up questions about the finished plan. Binds whatever
+    frontend actions CopilotKit forwarded (state["copilotkit"]["actions"]) as
+    tools so the LLM can trigger real UI (map, transport comparison, day
+    highlight) instead of just describing things in text."""
+    from langchain_core.messages import SystemMessage
+    import agents
+
+    frontend_actions = state.get("copilotkit", {}).get("actions", [])
+    master_plan = state.get("master_plan") or {}
+    system = SystemMessage(content=(
+        "You already built this traveler's trip plan. Answer follow-up questions about it, "
+        "grounded ONLY in the plan details below — never invent hotel names, places, or days "
+        "that aren't listed here. Prefer calling an available tool (showing a map, comparing "
+        "transport options, highlighting a day) over describing things in text.\n\n"
+        f"PLAN DETAILS:\n{_plan_summary_for_prompt(master_plan)}"
+    ))
+
+    llm = agents.llm.bind_tools(frontend_actions) if frontend_actions else agents.llm
+    ai_message = llm.invoke([system, *state.get("messages", [])])
+    return {"messages": [ai_message]}

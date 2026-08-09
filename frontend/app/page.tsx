@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertCircle,
   Armchair,
@@ -29,12 +29,14 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { MOCK_PLAN, MOCK_REPLIES } from "@/lib/mock-data";
-
-const MOCK_MODE = process.env.NEXT_PUBLIC_MOCK_MODE === "true";
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import {
+  ThreadsProvider,
+  useCoAgent,
+  useCopilotAction,
+  useLangGraphInterrupt,
+} from "@copilotkit/react-core";
+import { CopilotChat } from "@copilotkit/react-ui";
+import TripMap from "@/components/trip-map";
 
 type TripOverview = {
   origin: string;
@@ -156,73 +158,53 @@ type MasterPlan = {
   };
 };
 
-type ChatMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  plan?: MasterPlan;
-  isLoading?: boolean;
+type AgentState = {
+  master_plan?: MasterPlan;
+};
+
+type MissingFieldsEvent = {
+  type: "missing_fields_form";
+  missing_fields: string[];
+  collected: Record<string, unknown>;
+  prompt: string;
+};
+
+type BudgetAllocationEvent = {
+  type: "budget_allocation_form";
+  total_budget: number;
+  currency: string;
+  currency_symbol: string;
+  default_allocation: Record<string, number>;
+  allocation_amounts: Record<string, number>;
+  prompt: string;
 };
 
 const EXAMPLE_PROMPTS = [
   {
     title: "Budget beach",
-    meta: "3 days | 2 travelers",
-    prompt:
+    message:
       "Plan a 3-day budget trip from Pune to Goa in June for 2 people, budget Rs. 20,000",
-    icon: <PlaneTakeoff size={16} />,
   },
   {
     title: "Culture and food",
-    meta: "Rajasthan | mid-range",
-    prompt:
+    message:
       "5 days in Rajasthan from Delhi, Rs. 30,000, mid-range, culture and food",
-    icon: <MapPinned size={16} />,
   },
   {
     title: "Weekend surprise",
-    meta: "Mumbai | Rs. 10,000",
-    prompt:
+    message:
       "Weekend trip from Mumbai, budget Rs. 10,000, surprise me with a destination",
-    icon: <Sparkles size={16} />,
   },
 ];
 
-const MD_COMPONENTS = {
-  p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="my-1 leading-relaxed">{children}</p>
-  ),
-  h2: ({ children }: { children?: React.ReactNode }) => (
-    <h2 className="mb-1 mt-3 text-lg font-bold">{children}</h2>
-  ),
-  h3: ({ children }: { children?: React.ReactNode }) => (
-    <h3 className="mb-1 mt-2 text-base font-bold">{children}</h3>
-  ),
-  strong: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-semibold text-foreground">{children}</strong>
-  ),
-  ul: ({ children }: { children?: React.ReactNode }) => (
-    <ul className="my-1 list-inside list-disc space-y-1">{children}</ul>
-  ),
-  li: ({ children }: { children?: React.ReactNode }) => (
-    <li className="leading-relaxed">{children}</li>
-  ),
-  hr: () => <hr className="my-3 border-border" />,
-  code: ({ children }: { children?: React.ReactNode }) => (
-    <code className="rounded bg-secondary px-1 py-0.5 font-mono text-xs">
-      {children}
-    </code>
-  ),
+const NODE_LABELS: Record<string, string> = {
+  collect_info: "Reading your trip details...",
+  confirm_budget: "Working out your budget split...",
+  live_data_research: "Searching transport, stays and building your itinerary...",
 };
 
 export default function Home() {
   const [sessionId, setSessionId] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [mockStep, setMockStep] = useState(0);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     let sid = localStorage.getItem("travel_session_id") ?? "";
@@ -233,94 +215,10 @@ export default function Home() {
     setSessionId(sid);
   }, []);
 
-  useEffect(() => {
-    const el = scrollContainerRef.current;
-    if (!el) return;
-    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
-    if (isNearBottom) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [messages]);
-
-  useEffect(() => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    ta.style.height = "auto";
-    ta.style.height = `${Math.min(ta.scrollHeight, 128)}px`;
-  }, [input]);
-
   function startNewChat() {
     const sid = crypto.randomUUID();
     localStorage.setItem("travel_session_id", sid);
     setSessionId(sid);
-    setMessages([]);
-    setInput("");
-    setMockStep(0);
-  }
-
-  async function sendMessage(text: string) {
-    const trimmed = text.trim();
-    if (!trimmed || loading || !sessionId) return;
-
-    setMessages((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), role: "user", content: trimmed },
-      { id: "thinking", role: "assistant", content: "", isLoading: true },
-    ]);
-    setInput("");
-    setLoading(true);
-
-    if (MOCK_MODE) {
-      await new Promise((r) => setTimeout(r, 800));
-      const mock = MOCK_REPLIES[Math.min(mockStep, MOCK_REPLIES.length - 1)];
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: mock.reply,
-          plan: mock.stage === "complete" ? MOCK_PLAN : undefined,
-        },
-      ]);
-      setMockStep((s) => s + 1);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API_URL}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: sessionId, message: trimmed }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail ?? "Something went wrong.");
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: data.reply,
-          plan: data.plan ?? undefined,
-        },
-      ]);
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: err instanceof Error ? err.message : "Something went wrong.",
-        },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage(input);
-    }
   }
 
   return (
@@ -348,50 +246,258 @@ export default function Home() {
         </div>
       </header>
 
-      <main ref={scrollContainerRef} className="flex-1 overflow-y-auto">
-        {messages.length === 0 ? (
-          <WelcomeScreen onSelect={sendMessage} />
-        ) : (
-          <div className="mx-auto max-w-4xl space-y-7 px-4 py-8">
-            {messages.map((msg) => (
-              <MessageBubble key={msg.id} msg={msg} />
-            ))}
+      {sessionId && (
+        <ThreadsProvider key={sessionId} threadId={sessionId}>
+          <div className="flex flex-1 overflow-hidden">
+            <div className="flex w-[420px] shrink-0 flex-col border-r border-border/70 bg-card/40">
+              <CopilotChat
+                className="h-full"
+                labels={{
+                  initial:
+                    "Tell me your origin, destination (optional), dates, budget, travel style and interests — I'll turn it into a full itinerary.",
+                }}
+                suggestions={EXAMPLE_PROMPTS}
+              />
+            </div>
+            <main className="flex-1 overflow-y-auto">
+              <PlanCanvas />
+            </main>
           </div>
-        )}
-      </main>
+        </ThreadsProvider>
+      )}
+    </div>
+  );
+}
 
-      <div className="shrink-0 border-t border-border/70 bg-card/85 px-4 py-3 backdrop-blur-xl">
-        <div className="mx-auto max-w-3xl">
-          <div className="flex items-end gap-3 rounded-2xl border border-primary/15 bg-background p-2 shadow-lg shadow-primary/5">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Describe your trip... (e.g. 3 days in Goa from Pune, Rs. 15,000 budget)"
-              rows={1}
-              disabled={loading}
-              className="flex-1 resize-none rounded-xl border-0 bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground transition focus:outline-none disabled:opacity-50"
-              style={{ minHeight: "48px", maxHeight: "128px" }}
+function PlanCanvas() {
+  const { state, running, nodeName } = useCoAgent<AgentState>({
+    name: "travel_planner",
+    initialState: {},
+  });
+
+  useLangGraphInterrupt<MissingFieldsEvent>({
+    enabled: ({ eventValue }) => eventValue?.type === "missing_fields_form",
+    render: ({ event, resolve }) => (
+      <InterruptForm prompt={event.value.prompt} resolve={resolve} />
+    ),
+  });
+
+  useLangGraphInterrupt<BudgetAllocationEvent>({
+    enabled: ({ eventValue }) => eventValue?.type === "budget_allocation_form",
+    render: ({ event, resolve }) => (
+      <BudgetInterruptForm event={event.value} resolve={resolve} />
+    ),
+  });
+
+  const plan = state?.master_plan;
+  const ov = plan?.trip_overview;
+  const f = (v: number) => fmt(v, ov?.currency_symbol ?? "", ov?.currency ?? "");
+
+  useCopilotAction({
+    name: "show_map",
+    description:
+      "Show a map centered on a place from the trip (hotel, attraction, or the destination itself).",
+    available: "enabled",
+    parameters: [
+      {
+        name: "query",
+        type: "string",
+        description: "Place name or address to center the map on, ideally including the city",
+        required: true,
+      },
+    ],
+    render: ({ args }) => <TripMap query={args.query ?? ""} />,
+  });
+
+  useCopilotAction({
+    name: "compare_transport_options",
+    description:
+      "Show a detailed comparison of the flight, train, and bus options already found for this trip.",
+    available: "enabled",
+    parameters: [],
+    render: () =>
+      plan?.transport ? (
+        <TransportSection transport={plan.transport} f={f} />
+      ) : (
+        <p className="text-sm text-muted-foreground">No transport data yet.</p>
+      ),
+  });
+
+  useCopilotAction({
+    name: "highlight_day",
+    description: "Scroll to and highlight a specific day in the itinerary.",
+    available: "enabled",
+    parameters: [
+      { name: "day", type: "number", description: "Day number to highlight", required: true },
+    ],
+    render: ({ args }) => (args.day != null ? <HighlightDayAction day={args.day} /> : <></>),
+  });
+
+  if (plan && Object.keys(plan).length > 0) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-7 px-4 py-8">
+        <PlanResult plan={plan} />
+      </div>
+    );
+  }
+
+  if (running) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-8">
+        <ProgressPanel
+          label={
+            (nodeName && NODE_LABELS[nodeName]) || "Working on your trip..."
+          }
+        />
+      </div>
+    );
+  }
+
+  return <WelcomeScreen />;
+}
+
+function InterruptForm({
+  prompt,
+  resolve,
+}: {
+  prompt: string;
+  resolve: (resolution: string) => void;
+}) {
+  const [value, setValue] = useState("");
+  const [sent, setSent] = useState(false);
+
+  function submit() {
+    if (!value.trim() || sent) return;
+    setSent(true);
+    resolve(value.trim());
+  }
+
+  return (
+    <div className="mt-3 w-full space-y-3 rounded-2xl border border-primary/20 bg-card p-4 shadow-sm">
+      <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+        {prompt}
+      </p>
+      {!sent ? (
+        <div className="flex items-center gap-2">
+          <input
+            autoFocus
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submit()}
+            placeholder="Type your reply..."
+            className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+          />
+          <button
+            onClick={submit}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm transition hover:bg-primary/90"
+          >
+            <SendHorizonal size={15} />
+          </button>
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">Sent: &ldquo;{value}&rdquo;</p>
+      )}
+    </div>
+  );
+}
+
+function BudgetInterruptForm({
+  event,
+  resolve,
+}: {
+  event: BudgetAllocationEvent;
+  resolve: (resolution: string) => void;
+}) {
+  const [value, setValue] = useState("");
+  const [sent, setSent] = useState(false);
+
+  function submit(text: string) {
+    if (!text.trim() || sent) return;
+    setSent(true);
+    resolve(text.trim());
+  }
+
+  return (
+    <div className="mt-3 w-full space-y-3 rounded-2xl border border-primary/20 bg-card p-4 shadow-sm">
+      <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+        {event.prompt}
+      </p>
+      {!sent ? (
+        <>
+          <button
+            onClick={() => submit("Looks good, proceed with the default allocation.")}
+            className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90"
+          >
+            <CheckCircle size={15} />
+            Looks good, proceed
+          </button>
+          <div className="flex items-center gap-2">
+            <input
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submit(value)}
+              placeholder="Or tell me what to adjust..."
+              className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
             <button
-              onClick={() => sendMessage(input)}
-              disabled={loading || !input.trim()}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => submit(value)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-foreground shadow-sm transition hover:border-primary/30"
             >
-              <SendHorizonal size={17} />
+              <SendHorizonal size={15} />
             </button>
           </div>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            Enter to send | Shift+Enter for new line
-          </p>
-        </div>
+        </>
+      ) : (
+        <p className="text-xs text-muted-foreground">Sent: &ldquo;{value || "Looks good, proceed with the default allocation."}&rdquo;</p>
+      )}
+    </div>
+  );
+}
+
+function ProgressPanel({ label }: { label: string }) {
+  return (
+    <div className="max-w-md space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <Sparkles size={16} className="text-primary" />
+        Building your travel plan
+      </div>
+      <div className="flex items-center gap-2.5 text-sm text-foreground">
+        <span className="flex h-5 w-5 items-center justify-center gap-0.5 rounded-full bg-primary/10">
+          {[0, 1, 2].map((j) => (
+            <span
+              key={j}
+              className="h-1 w-1 animate-bounce rounded-full bg-primary"
+              style={{ animationDelay: `${j * 0.15}s` }}
+            />
+          ))}
+        </span>
+        {label}
       </div>
     </div>
   );
 }
 
-function WelcomeScreen({ onSelect }: { onSelect: (p: string) => void }) {
+function HighlightDayAction({ day }: { day: number }) {
+  useEffect(() => {
+    const el = document.getElementById(`day-${day}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("ring-2", "ring-primary", "ring-offset-2");
+    const timer = setTimeout(() => {
+      el.classList.remove("ring-2", "ring-primary", "ring-offset-2");
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [day]);
+
+  return (
+    <div className="flex items-center gap-2 rounded-2xl border border-primary/20 bg-card px-4 py-2.5 text-sm text-foreground shadow-sm">
+      <CheckCircle size={15} className="text-primary" />
+      Jumped to Day {day}
+    </div>
+  );
+}
+
+function WelcomeScreen() {
   return (
     <div className="mx-auto flex h-full w-full max-w-6xl flex-col justify-center gap-7 px-4 py-6">
       <div className="grid items-center gap-7 lg:grid-cols-[0.95fr_1.05fr]">
@@ -475,137 +581,6 @@ function WelcomeScreen({ onSelect }: { onSelect: (p: string) => void }) {
           </div>
         </div>
       </div>
-
-      <div className="grid gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Try a prompt
-        </p>
-        <div className="grid gap-3 md:grid-cols-3">
-          {EXAMPLE_PROMPTS.map((item) => (
-            <button
-              key={item.prompt}
-              onClick={() => onSelect(item.prompt)}
-              className="group flex min-h-28 flex-col justify-between rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-secondary/40 hover:shadow-md"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  {item.icon}
-                </span>
-                <SendHorizonal
-                  size={15}
-                  className="shrink-0 text-muted-foreground transition group-hover:text-primary"
-                />
-              </div>
-              <div>
-                <p className="font-semibold text-foreground">{item.title}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {item.meta}
-                </p>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MessageBubble({ msg }: { msg: ChatMessage }) {
-  if (msg.role === "user") {
-    return (
-      <div className="flex justify-end">
-        <div className="max-w-[78%] rounded-2xl rounded-tr-md bg-primary px-4 py-3 text-sm leading-relaxed text-primary-foreground shadow-sm whitespace-pre-wrap">
-          {msg.content}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-start gap-3">
-      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
-        <PlaneTakeoff size={15} className="text-primary" />
-      </div>
-      <div className="min-w-0 flex-1 space-y-5">
-        {msg.isLoading ? (
-          <ThinkingPanel />
-        ) : (
-          <>
-            {msg.content && (
-              <div className="space-y-2 text-sm leading-relaxed text-foreground">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={MD_COMPONENTS}
-                >
-                  {msg.content}
-                </ReactMarkdown>
-              </div>
-            )}
-            {msg.plan && Object.keys(msg.plan).length > 0 && (
-              <PlanResult plan={msg.plan} />
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-const PLANNING_STEPS = [
-  { label: "Searching transport options...", duration: 8000 },
-  { label: "Finding accommodation...", duration: 8000 },
-  { label: "Building your itinerary...", duration: 12000 },
-  { label: "Calculating budget breakdown...", duration: 8000 },
-  { label: "Putting it all together...", duration: Infinity },
-];
-
-function ThinkingPanel() {
-  const [stepIdx, setStepIdx] = useState(0);
-
-  useEffect(() => {
-    if (stepIdx >= PLANNING_STEPS.length - 1) return;
-    const timer = setTimeout(
-      () => setStepIdx((i) => i + 1),
-      PLANNING_STEPS[stepIdx].duration,
-    );
-    return () => clearTimeout(timer);
-  }, [stepIdx]);
-
-  return (
-    <div className="max-w-md space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-        <Sparkles size={16} className="text-primary" />
-        Building your travel plan
-      </div>
-      {PLANNING_STEPS.slice(0, stepIdx + 1).map((step, i) => {
-        const isActive = i === stepIdx;
-        return (
-          <div key={step.label} className="flex items-center gap-2.5 text-sm">
-            {isActive ? (
-              <span className="flex h-5 w-5 items-center justify-center gap-0.5 rounded-full bg-primary/10">
-                {[0, 1, 2].map((j) => (
-                  <span
-                    key={j}
-                    className="h-1 w-1 animate-bounce rounded-full bg-primary"
-                    style={{ animationDelay: `${j * 0.15}s` }}
-                  />
-                ))}
-              </span>
-            ) : (
-              <CheckCircle size={16} className="text-green-600" />
-            )}
-            <span
-              className={
-                isActive
-                  ? "text-foreground"
-                  : "text-muted-foreground line-through"
-              }
-            >
-              {step.label}
-            </span>
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -827,11 +802,11 @@ function AccommodationSection({
       }
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {accommodation.options.map((opt) => {
+        {accommodation.options.map((opt, i) => {
           const isRec = opt.rank === accommodation.recommended_rank;
           return (
             <div
-              key={opt.rank}
+              key={`${opt.rank}-${i}`}
               className={`flex flex-col gap-3 rounded-2xl border p-4 ${
                 isRec
                   ? "border-primary/35 bg-primary/5"
@@ -942,7 +917,8 @@ function ItinerarySection({
         {itinerary.days.map((day) => (
           <div
             key={day.day}
-            className="overflow-hidden rounded-2xl border border-border bg-background"
+            id={`day-${day.day}`}
+            className="overflow-hidden rounded-2xl border border-border bg-background transition-shadow"
           >
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-secondary/35 px-5 py-3">
               <div>

@@ -1,12 +1,9 @@
 import json
-from datetime import date, timedelta
-from typing import Dict, List, Optional
+from datetime import date
+from typing import List, Optional
 
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel
-
-_REQUIRED = ["origin", "budget", "start_date", "num_days", "num_travelers", "travel_style"]
-_sessions: Dict[str, dict] = {}
 
 DEFAULT_ALLOCATION = {
     "transport": 35,
@@ -66,14 +63,6 @@ def _extract_prompt() -> str:
     )
 
 
-def _followup_prompt() -> str:
-    return (
-        f"Today is {_today()}. You are a friendly AI travel planning assistant. "
-        "Ask the user for the missing information listed below. "
-        "Be brief (1-2 sentences). Ask for all missing items in one go."
-    )
-
-
 def _budget_alloc_prompt(default: dict) -> str:
     default_escaped = json.dumps(default).replace("{", "{{").replace("}", "}}")
     return (
@@ -91,23 +80,6 @@ def _history_text(history: list) -> str:
 
 
 
-# ── Public API ─────────────────────────────────────────────────────────────────
-
-def get_or_create(session_id: str) -> dict:
-    if session_id not in _sessions:
-        _sessions[session_id] = {
-            "stage": "info_collection",
-            "history": [],
-            "params": {},
-            "budget_allocation": None,
-        }
-    return _sessions[session_id]
-
-
-def clear(session_id: str) -> None:
-    _sessions.pop(session_id, None)
-
-
 def extract_params(history: list) -> dict:
     from agents import llm
     prompt = ChatPromptTemplate.from_messages([
@@ -121,33 +93,6 @@ def extract_params(history: list) -> dict:
     except Exception as e:
         print(f"[chat_session] extract_params failed: {e}")
         return {}
-
-
-def missing_fields(params: dict) -> list:
-    missing = [f for f in _REQUIRED if not params.get(f)]
-    if "start_date" not in missing and params.get("start_date"):
-        try:
-            if date.fromisoformat(params["start_date"]) < date.today():
-                missing.append("start_date")
-        except ValueError:
-            missing.append("start_date")
-    return missing
-
-
-def follow_up_question(history: list, missing: list) -> str:
-    from agents import llm
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", _followup_prompt()),
-        ("human", "Conversation:\n{conv}\n\nMissing info needed: {missing}"),
-    ])
-    chain = prompt | llm
-    try:
-        return chain.invoke({
-            "conv": _history_text(history),
-            "missing": ", ".join(f.replace("_", " ") for f in missing),
-        }).content
-    except Exception:
-        return f"Could you share your {missing[0].replace('_', ' ')}?"
 
 
 def budget_allocation_message(params: dict, alloc: dict, amounts: dict) -> str:
@@ -177,47 +122,3 @@ def extract_budget_allocation(history: list, default_alloc: dict) -> dict:
     except Exception as e:
         print(f"[chat_session] extract_budget_allocation failed: {e}")
         return default_alloc.copy()
-
-
-def process_travel_plan(params: dict, budget_allocation: dict) -> dict:
-    """Invokes the LangGraph pipeline: SerpAPI → save txt → master LLM → plan."""
-    from graph import travel_planner
-
-    start = date.fromisoformat(params["start_date"])
-    end_date = (start + timedelta(days=int(params["num_days"]))).isoformat()
-
-    initial_state = {
-        "user_budget": float(params["budget"]),
-        "currency": params["currency"],
-        "currency_symbol": params.get("currency_symbol", ""),
-        "origin": params["origin"],
-        "destination": params.get("destination"),
-        "start_date": params["start_date"],
-        "end_date": end_date,
-        "num_days": int(params["num_days"]),
-        "num_travelers": int(params["num_travelers"]),
-        "travel_style": params["travel_style"],
-        "interests": params.get("interests") or [],
-        "budget_allocation": budget_allocation,
-        "live_trip_data": None,
-        "destination_research": None,
-        "transport_plan": None,
-        "accommodation_plan": None,
-        "itinerary": None,
-        "budget_summary": None,
-        "master_plan": None,
-        "raw_search_destination": None,
-        "raw_search_transport": None,
-        "raw_search_accommodation": None,
-        "raw_search_itinerary": None,
-        "budget_overrun": False,
-        "overrun_amount": 0.0,
-        "budget_constraint_message": None,
-        "reroute_count": 0,
-        "step_count": 0,
-        "messages": [],
-        "final_plan_ready": False,
-    }
-
-    result = travel_planner.invoke(initial_state)
-    return result.get("master_plan") or {}

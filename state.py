@@ -1,4 +1,7 @@
-from typing import TypedDict, Optional, List, Literal, Dict
+from typing import TypedDict, Optional, List, Literal, Dict, Annotated
+
+from langchain_core.messages import AnyMessage
+from langgraph.graph.message import add_messages
 
 class TravelPlanState(TypedDict):
     # ── User inputs ──────────────────────────────────────
@@ -36,5 +39,16 @@ class TravelPlanState(TypedDict):
     budget_constraint_message: Optional[str]
     reroute_count: int
     step_count: int
-    messages: List[dict]
+    # Internal scratch history used by collect_info/confirm_budget to build LLM
+    # context. Distinct from the AG-UI-managed "messages" channel (which the
+    # CopilotKit LangGraph adapter owns and stores as LangChain BaseMessage
+    # objects) so the two never collide in type or ownership.
+    conversation_log: List[dict]
     final_plan_ready: bool
+
+    # ── AG-UI / CopilotKit managed channels ───────────────
+    # Populated by the ag_ui_langgraph adapter: real chat transcript (LangChain
+    # message objects) and forwarded frontend action schemas, respectively.
+    # Only used by plan_chat_node, once the plan is ready.
+    messages: Annotated[List[AnyMessage], add_messages]
+    copilotkit: dict

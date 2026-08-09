@@ -9,6 +9,10 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@ag-ui/client": "^0.0.57",
+    "@copilotkit/react-core": "^1.66.2",
+    "@copilotkit/react-ui": "^1.66.2",
+    "@copilotkit/runtime": "^1.66.2",
     "@hookform/resolvers": "^3.9.1",
     "@radix-ui/react-accordion": "1.2.12",
     "@radix-ui/react-alert-dialog": "1.1.15",
@@ -46,8 +50,10 @@
     "embla-carousel-react": "8.6.0",
     "input-otp": "1.4.2",
     "lucide-react": "^0.564.0",
+    "mapbox-gl": "^3.28.1",
     "next": "16.2.6",
     "next-themes": "^0.4.6",
+    "openai": "^7.4.0",
     "react": "^19",
     "react-day-picker": "9.13.2",
     "react-dom": "^19",
